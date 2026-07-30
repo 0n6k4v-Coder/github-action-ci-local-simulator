@@ -1,0 +1,54 @@
+# Build output
+/bin/
+/dist/
+*.exe
+*.test
+*.prof
+
+# Go build cache
+/go/pkg/mod/cache/
+.gobuild/
+
+# IDE and editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+*.log.*
+logs/
+~/.gacils/logs/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Test artifacts
+coverage.out
+coverage.html
+profile.cov
+*.out
+
+# Build artifacts
+vendor/
+go.work
+go.work.sum
+
+# Docker
+docker-compose.override.yml
+docker-compose.*.local.yml
+
+# OS generated
+Thumbs.db
+ehthumbs.db
+Desktop.ini
