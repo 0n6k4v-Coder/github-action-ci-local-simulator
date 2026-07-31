@@ -20,7 +20,7 @@
 # Logs
 *.log
 *.log.*
-logs/
+/logs/
 ~/.gacils/logs/
 
 # Environment and secrets
