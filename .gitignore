@@ -1,6 +1,7 @@
 # Build output
 /bin/
 /dist/
+/tmp/
 *.exe
 *.test
 *.prof
@@ -21,7 +22,11 @@
 *.log
 *.log.*
 /logs/
-~/.gacils/logs/
+
+# Runtime directories
+/.gacils/
+/.gacils-local/
+/artifacts/
 
 # Environment and secrets
 .env

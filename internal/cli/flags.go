@@ -13,25 +13,6 @@ type RunFlags struct {
 	CRLF       string
 	Platform   string
 	Offline    bool
-	Verbose    bool
-	NoColor    bool
-	Strict     bool
-}
-
-// Global flags shared across commands
-var (
-	verbose   bool
-	noColor   bool
-	strict    bool
-	offline   bool
-)
-
-// BindGlobalFlags binds global flags to the command
-func BindGlobalFlags(cmd *cobra.Command) {
-	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
-	cmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
-	cmd.PersistentFlags().BoolVar(&strict, "strict", false, "Strict mode: fail on warnings")
-	cmd.PersistentFlags().BoolVar(&offline, "offline", false, "Offline mode: do not pull images")
 }
 
 // BindRunFlags binds run-specific flags to the command
@@ -43,21 +24,4 @@ func BindRunFlags(cmd *cobra.Command, flags *RunFlags) {
 	cmd.Flags().StringVar(&flags.CRLF, "crlf", "convert", "CRLF handling mode: convert | preserve | error (default: convert)")
 	cmd.Flags().StringVar(&flags.Platform, "platform", "", "Force container platform (e.g., linux/amd64)")
 	cmd.Flags().BoolVar(&flags.Offline, "offline", false, "Offline mode: do not pull images")
-}
-
-// GlobalFlags returns the global flags state
-type GlobalFlags struct {
-	Verbose bool
-	NoColor bool
-	Strict  bool
-	Offline bool
-}
-
-func GetGlobalFlags() GlobalFlags {
-	return GlobalFlags{
-		Verbose: verbose,
-		NoColor: noColor,
-		Strict:  strict,
-		Offline: offline,
-	}
 }

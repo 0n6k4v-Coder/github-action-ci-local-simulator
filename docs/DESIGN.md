@@ -55,8 +55,6 @@ This is not intended to replace GitHub Actions or compete with `act`. It is a le
 |---|---|
 | Language | Go |
 | Go version | Go 1.26.x |
-
-> **Note:** Go 1.22+ is sufficient for initial implementation. The design target is Go 1.26.x when available in the local toolchain.
 | CLI framework | Cobra |
 | YAML parser | `gopkg.in/yaml.v3` |
 | Docker client | Official Docker Engine API Go SDK |
@@ -66,6 +64,8 @@ This is not intended to replace GitHub Actions or compete with `act`. It is a le
 | Release tool | GoReleaser |
 | Testing | Go testing + testify |
 | License | MIT |
+
+> **Note:** Go 1.22+ is sufficient for initial implementation. The design target is Go 1.26.x when available in the local toolchain.
 
 Docker client initialization must use:
 

@@ -8,19 +8,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	globalFlags struct {
-		configFile     string
-		workingDir     string
-		verbose        bool
-		noColor        bool
-		jsonOutput     bool
-		dockerHost     string
-		dockerContext  string
-		dockerTLSVerify string
-		dockerCertPath string
-	}
-)
+var globalFlags struct {
+	configFile      string
+	workingDir      string
+	verbose         bool
+	noColor         bool
+	strict          bool
+	jsonOutput      bool
+	dockerHost      string
+	dockerContext   string
+	dockerTLSVerify string
+	dockerCertPath  string
+}
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -60,6 +59,7 @@ Unsupported features fail clearly with exit code 3.`,
 	cmd.PersistentFlags().StringVarP(&globalFlags.workingDir, "working-directory", "w", ".", "Working directory (default: current directory)")
 	cmd.PersistentFlags().BoolVarP(&globalFlags.verbose, "verbose", "v", false, "Verbose output")
 	cmd.PersistentFlags().BoolVar(&globalFlags.noColor, "no-color", false, "Disable colored output")
+	cmd.PersistentFlags().BoolVar(&globalFlags.strict, "strict", false, "Strict mode: treat warnings as errors")
 	cmd.PersistentFlags().BoolVar(&globalFlags.jsonOutput, "json", false, "Output as JSON")
 	cmd.PersistentFlags().StringVar(&globalFlags.dockerHost, "docker-host", "", "Docker host (overrides DOCKER_HOST)")
 	cmd.PersistentFlags().StringVar(&globalFlags.dockerContext, "docker-context", "", "Docker context (overrides DOCKER_CONTEXT)")
