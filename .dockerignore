@@ -4,7 +4,6 @@
 .dockerignore
 
 docs/
-testdata/
 dist/
 bin/
 tmp/

@@ -1,0 +1,5 @@
+name: test-no-steps
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest

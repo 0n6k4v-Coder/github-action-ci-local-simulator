@@ -1,0 +1,9 @@
+name: test-runs-on-list
+on: push
+jobs:
+  test:
+    runs-on:
+      - ubuntu-latest
+      - self-hosted
+    steps:
+      - run: echo hello

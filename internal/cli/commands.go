@@ -22,24 +22,6 @@ func newVersionCmd() *cobra.Command {
 	return cmd
 }
 
-func newRunCmd() *cobra.Command {
-	flags := &RunFlags{}
-
-	cmd := &cobra.Command{
-		Use:   "run",
-		Short: "Run GitHub Actions workflows locally",
-		Long:  "Run GitHub Actions workflows locally using Docker.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("gacils run is not implemented yet")
-			return nil
-		},
-	}
-
-	BindRunFlags(cmd, flags)
-
-	return cmd
-}
-
 func newListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",

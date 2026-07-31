@@ -1,0 +1,7 @@
+name: test-neither-run-uses
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: invalid step
