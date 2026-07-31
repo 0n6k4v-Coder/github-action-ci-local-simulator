@@ -35,7 +35,6 @@ func newRunCmd() *cobra.Command {
 		},
 	}
 
-	BindGlobalFlags(cmd)
 	BindRunFlags(cmd, flags)
 
 	return cmd
@@ -52,7 +51,6 @@ func newListCmd() *cobra.Command {
 		},
 	}
 
-	BindGlobalFlags(cmd)
 	cmd.Flags().StringSliceP("workflow", "W", nil, "Workflow file or directory (default: .github/workflows)")
 	cmd.Flags().Bool("json", false, "Output as JSON")
 
@@ -70,7 +68,6 @@ func newInitCmd() *cobra.Command {
 		},
 	}
 
-	BindGlobalFlags(cmd)
 	cmd.Flags().Bool("force", false, "Overwrite existing files")
 	cmd.Flags().String("python", "3.12", "Python version for generated workflow")
 	cmd.Flags().String("working-directory", ".", "Working directory for generated workflow")
@@ -89,10 +86,8 @@ func newDoctorCmd() *cobra.Command {
 		},
 	}
 
-	BindGlobalFlags(cmd)
 	cmd.Flags().Bool("fix", false, "Attempt to fix issues automatically")
 	cmd.Flags().Bool("json", false, "Output as JSON")
-	cmd.Flags().BoolP("verbose", "v", false, "Verbose output")
 
 	return cmd
 }
@@ -108,12 +103,14 @@ func newCleanCmd() *cobra.Command {
 		},
 	}
 
-	BindGlobalFlags(cmd)
-	cmd.Flags().Bool("all", false, "Clean everything (cache, logs, workspace)")
-	cmd.Flags().Bool("cache", false, "Clean Docker image cache and Python cache")
-	cmd.Flags().Bool("logs", false, "Clean log files")
-	cmd.Flags().Bool("workspace", false, "Clean workspace directories")
-	cmd.Flags().Bool("force", false, "Force clean without confirmation")
+	cmd.Flags().Bool("logs", false, "Remove logs")
+	cmd.Flags().Bool("cache", false, "Remove cache")
+	cmd.Flags().Bool("containers", false, "Remove gacils containers")
+	cmd.Flags().Bool("volumes", false, "Remove gacils Docker volumes")
+	cmd.Flags().Bool("all", false, "Remove logs, cache, containers, and volumes")
+	cmd.Flags().Duration("older-than", 0, "Remove logs older than duration")
+	cmd.Flags().Bool("force", false, "Do not ask for confirmation")
+	cmd.Flags().Bool("include-config", false, "Also remove config file")
 
 	return cmd
 }
@@ -129,8 +126,23 @@ func newSetupCmd() *cobra.Command {
 		},
 	}
 
-	BindGlobalFlags(cmd)
-	cmd.Flags().String("python", "3.12", "Python version to set up")
+	cmd.AddCommand(newSetupPythonCmd())
+
+	return cmd
+}
+
+func newSetupPythonCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "python <version>",
+		Short: "Setup Python tool cache",
+		Long:  "Setup Python tool cache for the specified version.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println("gacils setup python is not implemented yet")
+			return nil
+		},
+	}
+
 	cmd.Flags().Bool("force", false, "Force re-setup even if already present")
 	cmd.Flags().Bool("no-cache", false, "Do not use cached images")
 

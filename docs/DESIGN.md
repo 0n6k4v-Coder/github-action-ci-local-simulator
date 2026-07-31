@@ -19,7 +19,7 @@ gacils
 Go module:
 
 ```text
-github.com/yourname/github-action-ci-local-simulator
+github.com/0n6k4v-Coder/github-action-ci-local-simulator
 ```
 
 License:
@@ -55,6 +55,8 @@ This is not intended to replace GitHub Actions or compete with `act`. It is a le
 |---|---|
 | Language | Go |
 | Go version | Go 1.26.x |
+
+> **Note:** Go 1.22+ is sufficient for initial implementation. The design target is Go 1.26.x when available in the local toolchain.
 | CLI framework | Cobra |
 | YAML parser | `gopkg.in/yaml.v3` |
 | Docker client | Official Docker Engine API Go SDK |
@@ -2444,7 +2446,7 @@ goreleaser release --snapshot --clean
 From source:
 
 ```sh
-go install github.com/yourname/github-action-ci-local-simulator/cmd/gacils@latest
+go install github.com/0n6k4v-Coder/github-action-ci-local-simulator/cmd/gacils@latest
 ```
 
 Verify:
@@ -2456,20 +2458,20 @@ gacils version
 Homebrew:
 
 ```sh
-brew install yourname/tap/gacils
+brew install 0n6k4v-Coder/tap/gacils
 ```
 
 Scoop:
 
 ```powershell
-scoop bucket add yourname https://github.com/yourname/scoop-bucket
+scoop bucket add 0n6k4v-Coder https://github.com/0n6k4v-Coder/scoop-bucket
 scoop install gacils
 ```
 
 Linux tarball:
 
 ```sh
-curl -fsSL https://github.com/yourname/github-action-ci-local-simulator/releases/latest/download/github-action-ci-local-simulator_linux_amd64.tar.gz \
+curl -fsSL https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/releases/latest/download/github-action-ci-local-simulator_linux_amd64.tar.gz \
   | tar -xz -C /tmp
 
 sudo mv /tmp/gacils /usr/local/bin/gacils
@@ -2484,7 +2486,7 @@ gacils version
 ### Phase 1 — Core Runner
 
 ```text
-□ go mod init github.com/yourname/github-action-ci-local-simulator
+□ go mod init github.com/0n6k4v-Coder/github-action-ci-local-simulator
 □ Cobra CLI: run, version, doctor
 □ Workflow loader
 □ Basic validator

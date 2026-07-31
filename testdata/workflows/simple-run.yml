@@ -1,0 +1,11 @@
+name: simple-run
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hello
+      - run: pwd
+      - run: ls -la
