@@ -1,0 +1,11 @@
+name: failing-run
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "This will succeed"
+      - run: exit 1
+      - run: echo "This will not run"

@@ -1,0 +1,9 @@
+name: unsupported-runs-on
+
+on: push
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - run: echo hello

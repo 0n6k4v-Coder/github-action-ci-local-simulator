@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/0n6k4v-Coder/github-action-ci-local-simulator/internal/dockerx"
+	"github.com/0n6k4v-Coder/github-action-ci-local-simulator/internal/runner"
 	"github.com/0n6k4v-Coder/github-action-ci-local-simulator/internal/workflow"
 	"github.com/spf13/cobra"
 )
@@ -55,15 +58,71 @@ func newRunCmd() *cobra.Command {
 				return nil
 			}
 
-			// Not implemented yet
-			fmt.Println("gacils run execution is not implemented yet")
-			return nil
+			// Execute workflows
+			return executeWorkflows(cmd.Context(), workflows, paths)
 		},
 	}
 
 	BindRunFlags(cmd, flags)
 
 	return cmd
+}
+
+// executeWorkflows executes the loaded workflows using Docker.
+func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths []string) error {
+	// Create Docker client
+	cli, err := dockerx.NewClient(ctx)
+	if err != nil {
+		return fmt.Errorf("create docker client: %w", err)
+	}
+	defer cli.Close()
+
+	// Create job runner
+	jobRunner := runner.NewJobRunner(cli)
+
+	// Process each workflow
+	for i, wf := range workflows {
+		fmt.Printf("Running workflow: %s (%s)\n", wf.Name, paths[i])
+
+		// Build workflow-level environment
+		workflowEnv := make(map[string]string)
+		for k, v := range wf.Env {
+			workflowEnv[k] = fmt.Sprintf("%v", v)
+		}
+
+		// Run each job in the workflow
+		for jobID, job := range wf.Jobs {
+			fmt.Printf("  Job: %s\n", jobID)
+
+			result, err := jobRunner.RunJob(ctx, job, jobID, workflowEnv)
+			if err != nil {
+				return fmt.Errorf("run job %s: %w", jobID, err)
+			}
+
+			// Print step outputs
+			for j, stepResult := range result.Steps {
+				if stepResult.Stdout != "" {
+					fmt.Printf("    Step %d stdout:\n%s", j+1, stepResult.Stdout)
+				}
+				if stepResult.Stderr != "" {
+					fmt.Printf("    Step %d stderr:\n%s", j+1, stepResult.Stderr)
+				}
+			}
+
+			if result.ExitCode != 0 {
+				if result.Error != nil {
+					fmt.Printf("  Job %s failed: %v\n", jobID, result.Error)
+				} else {
+					fmt.Printf("  Job %s failed with exit code %d\n", jobID, result.ExitCode)
+				}
+				return fmt.Errorf("job %s failed with exit code %d", jobID, result.ExitCode)
+			}
+
+			fmt.Printf("  Job %s completed successfully\n", jobID)
+		}
+	}
+
+	return nil
 }
 
 // loadWorkflows loads workflows from a file or directory.
