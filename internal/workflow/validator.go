@@ -82,11 +82,16 @@ func validateStep(jobID string, stepIndex int, step *Step) error {
 	return nil
 }
 
-// DryRunPlan represents a dry-run execution plan.
+// DryRunPlan represents a dry-run execution plan for a single workflow.
 type DryRunPlan struct {
 	WorkflowName string
 	WorkflowPath string
 	Jobs         []DryRunJob
+}
+
+// DryRunPlanSet represents a dry-run execution plan for multiple workflows.
+type DryRunPlanSet struct {
+	Plans []*DryRunPlan
 }
 
 // DryRunJob represents a job in the dry-run plan.
@@ -100,14 +105,14 @@ type DryRunJob struct {
 
 // DryRunStep represents a step in the dry-run plan.
 type DryRunStep struct {
-	Index    int
-	ID       string
-	Name     string
-	Run      string
-	Uses     string
-	If       string
-	ContinueOnError bool
-	TimeoutMinutes int
+	Index            int
+	ID               string
+	Name             string
+	Run              string
+	Uses             string
+	If               string
+	ContinueOnError  bool
+	TimeoutMinutes   int
 }
 
 // GenerateDryRunPlan generates a dry-run plan from the workflow.
@@ -144,4 +149,17 @@ func GenerateDryRunPlan(wf *Workflow, path string) *DryRunPlan {
 	}
 
 	return plan
+}
+
+// GenerateDryRunPlanSet generates a dry-run plan set from multiple workflows.
+func GenerateDryRunPlanSet(workflows []*Workflow, paths []string) *DryRunPlanSet {
+	planSet := &DryRunPlanSet{
+		Plans: make([]*DryRunPlan, len(workflows)),
+	}
+
+	for i, wf := range workflows {
+		planSet.Plans[i] = GenerateDryRunPlan(wf, paths[i])
+	}
+
+	return planSet
 }

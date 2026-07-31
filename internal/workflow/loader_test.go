@@ -244,3 +244,164 @@ func TestGenerateDryRunPlan(t *testing.T) {
 		t.Errorf("expected step 2 run 'pwd', got %q", job.Steps[1].Run)
 	}
 }
+
+func TestLoadWorkflowsFromFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	wfPath := filepath.Join(tmpDir, "test.yml")
+
+	wfContent := `name: simple-run
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hello
+`
+
+	if err := os.WriteFile(wfPath, []byte(wfContent), 0644); err != nil {
+		t.Fatalf("write temp file: %v", err)
+	}
+
+	workflows, err := LoadWorkflows(wfPath)
+	if err != nil {
+		t.Fatalf("LoadWorkflows failed: %v", err)
+	}
+
+	if len(workflows) != 1 {
+		t.Errorf("expected 1 workflow, got %d", len(workflows))
+	}
+
+	if workflows[0].Name != "simple-run" {
+		t.Errorf("expected name 'simple-run', got %q", workflows[0].Name)
+	}
+}
+
+func TestLoadWorkflowsFromDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create first workflow
+	wf1Content := `name: workflow-one
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo one
+`
+	wf1Path := filepath.Join(tmpDir, "one.yml")
+	if err := os.WriteFile(wf1Path, []byte(wf1Content), 0644); err != nil {
+		t.Fatalf("write wf1: %v", err)
+	}
+
+	// Create second workflow
+	wf2Content := `name: workflow-two
+on: pull_request
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo two
+`
+	wf2Path := filepath.Join(tmpDir, "two.yaml")
+	if err := os.WriteFile(wf2Path, []byte(wf2Content), 0644); err != nil {
+		t.Fatalf("write wf2: %v", err)
+	}
+
+	// Create a non-workflow file (should be ignored)
+	txtPath := filepath.Join(tmpDir, "readme.txt")
+	if err := os.WriteFile(txtPath, []byte("ignore me"), 0644); err != nil {
+		t.Fatalf("write txt: %v", err)
+	}
+
+	workflows, err := LoadWorkflows(tmpDir)
+	if err != nil {
+		t.Fatalf("LoadWorkflows failed: %v", err)
+	}
+
+	if len(workflows) != 2 {
+		t.Errorf("expected 2 workflows, got %d", len(workflows))
+	}
+
+	// Check names (order is filesystem-dependent, so check both)
+	names := map[string]bool{}
+	for _, wf := range workflows {
+		names[wf.Name] = true
+	}
+	if !names["workflow-one"] {
+		t.Error("expected workflow-one in results")
+	}
+	if !names["workflow-two"] {
+		t.Error("expected workflow-two in results")
+	}
+}
+
+func TestLoadWorkflowsEmptyDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	_, err := LoadWorkflows(tmpDir)
+	if err == nil {
+		t.Error("expected error for empty directory, got nil")
+	}
+}
+
+func TestLoadWorkflowsNonexistent(t *testing.T) {
+	_, err := LoadWorkflows("/nonexistent/path")
+	if err == nil {
+		t.Error("expected error for nonexistent path, got nil")
+	}
+}
+
+func TestDefaultWorkflowDir(t *testing.T) {
+	dir := DefaultWorkflowDir()
+	if dir != ".github/workflows" {
+		t.Errorf("expected '.github/workflows', got %q", dir)
+	}
+}
+
+func TestGenerateDryRunPlanSet(t *testing.T) {
+	wf1 := &Workflow{
+		Name: "workflow-one",
+		Jobs: map[string]Job{
+			"test": {
+				Name:   "Test Job",
+				RunsOn: []string{"ubuntu-latest"},
+				Steps:  []Step{{ID: "step1", Run: "echo one"}},
+			},
+		},
+	}
+
+	wf2 := &Workflow{
+		Name: "workflow-two",
+		Jobs: map[string]Job{
+			"build": {
+				Name:   "Build Job",
+				RunsOn: []string{"ubuntu-latest"},
+				Steps:  []Step{{ID: "step1", Run: "echo two"}},
+			},
+		},
+	}
+
+	planSet := GenerateDryRunPlanSet([]*Workflow{wf1, wf2}, []string{"one.yml", "two.yml"})
+
+	if len(planSet.Plans) != 2 {
+		t.Errorf("expected 2 plans, got %d", len(planSet.Plans))
+	}
+
+	if planSet.Plans[0].WorkflowName != "workflow-one" {
+		t.Errorf("expected first plan name 'workflow-one', got %q", planSet.Plans[0].WorkflowName)
+	}
+
+	if planSet.Plans[1].WorkflowName != "workflow-two" {
+		t.Errorf("expected second plan name 'workflow-two', got %q", planSet.Plans[1].WorkflowName)
+	}
+
+	if planSet.Plans[0].WorkflowPath != "one.yml" {
+		t.Errorf("expected first path 'one.yml', got %q", planSet.Plans[0].WorkflowPath)
+	}
+
+	if planSet.Plans[1].WorkflowPath != "two.yml" {
+		t.Errorf("expected second path 'two.yml', got %q", planSet.Plans[1].WorkflowPath)
+	}
+}

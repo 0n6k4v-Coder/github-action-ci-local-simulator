@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/0n6k4v-Coder/github-action-ci-local-simulator/internal/workflow"
 	"github.com/spf13/cobra"
@@ -15,31 +17,41 @@ func newRunCmd() *cobra.Command {
 		Short: "Run GitHub Actions workflows locally",
 		Long:  "Run GitHub Actions workflows locally using Docker.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if flags.Workflow == "" {
-				return fmt.Errorf("workflow file is required (use -W flag)")
+			// Use default workflow directory if not specified
+			workflowPath := flags.Workflow
+			if workflowPath == "" {
+				workflowPath = workflow.DefaultWorkflowDir()
 			}
 
-			// Load workflow
-			wf, err := workflow.LoadWorkflow(flags.Workflow)
+			// Check if path exists
+			if _, err := os.Stat(workflowPath); os.IsNotExist(err) {
+				return fmt.Errorf("workflow path does not exist: %s", workflowPath)
+			}
+
+			// Load workflows (file or directory)
+			workflows, paths, err := loadWorkflows(workflowPath)
 			if err != nil {
-				return fmt.Errorf("load workflow: %w", err)
+				return fmt.Errorf("load workflows: %w", err)
 			}
 
-			// Normalize
-			if err := workflow.Normalize(wf); err != nil {
-				return fmt.Errorf("normalize workflow: %w", err)
-			}
+			// Process each workflow
+			for i, wf := range workflows {
+				// Normalize
+				if err := workflow.Normalize(wf); err != nil {
+					return fmt.Errorf("normalize workflow %s: %w", paths[i], err)
+				}
 
-			// Validate
-			if err := workflow.Validate(wf); err != nil {
-				return fmt.Errorf("validate workflow: %w", err)
+				// Validate
+				if err := workflow.Validate(wf); err != nil {
+					return fmt.Errorf("validate workflow %s: %w", paths[i], err)
+				}
 			}
 
 			// Generate dry-run plan
-			plan := workflow.GenerateDryRunPlan(wf, flags.Workflow)
+			planSet := workflow.GenerateDryRunPlanSet(workflows, paths)
 
 			if flags.DryRun {
-				printDryRunPlan(plan)
+				printDryRunPlanSet(planSet)
 				return nil
 			}
 
@@ -52,6 +64,60 @@ func newRunCmd() *cobra.Command {
 	BindRunFlags(cmd, flags)
 
 	return cmd
+}
+
+// loadWorkflows loads workflows from a file or directory.
+func loadWorkflows(path string) ([]*workflow.Workflow, []string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if info.IsDir() {
+		workflows, err := workflow.LoadWorkflows(path)
+		if err != nil {
+			return nil, nil, err
+		}
+		// Build paths for each workflow
+		paths := make([]string, len(workflows))
+		for i := range workflows {
+			// Find the matching file
+			entries, _ := os.ReadDir(path)
+			idx := 0
+			for _, entry := range entries {
+				if entry.IsDir() {
+					continue
+				}
+				name := entry.Name()
+				if filepath.Ext(name) == ".yml" || filepath.Ext(name) == ".yaml" {
+					if idx == i {
+						paths[i] = filepath.Join(path, name)
+						break
+					}
+					idx++
+				}
+			}
+		}
+		return workflows, paths, nil
+	}
+
+	// It's a file
+	wf, err := workflow.LoadWorkflow(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	return []*workflow.Workflow{wf}, []string{path}, nil
+}
+
+func printDryRunPlanSet(planSet *workflow.DryRunPlanSet) {
+	for i, plan := range planSet.Plans {
+		if i > 0 {
+			fmt.Println()
+			fmt.Println("---")
+			fmt.Println()
+		}
+		printDryRunPlan(plan)
+	}
 }
 
 func printDryRunPlan(plan *workflow.DryRunPlan) {
