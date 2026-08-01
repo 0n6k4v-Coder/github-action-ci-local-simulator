@@ -94,7 +94,30 @@ func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths
 		for jobID, job := range wf.Jobs {
 			fmt.Printf("  Job: %s\n", jobID)
 
-			result, err := jobRunner.RunJob(ctx, job, jobID, workflowEnv, wf.Defaults, wf)
+			// Determine workspace path - use the directory containing the workflow file
+			var jobWorkspacePath string
+			if i < len(paths) {
+				info, err := os.Stat(paths[i])
+				if err != nil {
+					return fmt.Errorf("stat workflow path: %w", err)
+				}
+				if info.IsDir() {
+					// If path is a directory, use it directly
+					jobWorkspacePath = paths[i]
+				} else {
+					// If path is a file, use its directory
+					jobWorkspacePath = filepath.Dir(paths[i])
+				}
+			} else {
+				jobWorkspacePath = "."
+			}
+			// Make it absolute
+			jobWorkspacePath, err = filepath.Abs(jobWorkspacePath)
+			if err != nil {
+				return fmt.Errorf("resolve workspace path: %w", err)
+			}
+
+			result, err := jobRunner.RunJob(ctx, job, jobID, workflowEnv, wf.Defaults, wf, jobWorkspacePath)
 			if err != nil {
 				return fmt.Errorf("run job %s: %w", jobID, err)
 			}

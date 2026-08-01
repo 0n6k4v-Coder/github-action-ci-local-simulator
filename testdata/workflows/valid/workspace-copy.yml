@@ -1,0 +1,30 @@
+name: workspace-copy-test
+
+on: push
+
+jobs:
+  test-workspace-copy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check workspace exists
+        run: |
+          ls -la /github/workspace
+          test -d /github/workspace
+      
+      - name: Check specific files copied
+        run: |
+          # These files should exist in the workspace
+          test -f /github/workspace/workspace-copy.yml
+          
+      - name: Check excluded files not copied
+        run: |
+          # .git should be excluded
+          if [ -d /github/workspace/.git ]; then
+            echo "ERROR: .git should be excluded"
+            exit 1
+          fi
+          
+      - name: Verify working directory
+        run: |
+          pwd
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"

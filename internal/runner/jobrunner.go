@@ -26,7 +26,7 @@ func NewJobRunner(cli *client.Client) *JobRunner {
 }
 
 // RunJob executes a job in a Docker container.
-func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string, workflowEnv map[string]string, workflowDefaults *workflow.Defaults, wf *workflow.Workflow) (*JobResult, error) {
+func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string, workflowEnv map[string]string, workflowDefaults *workflow.Defaults, wf *workflow.Workflow, workspacePath string) (*JobResult, error) {
 	// Generate job instance ID
 	jobInstanceID := fmt.Sprintf("%s-%s", jobID, generateShortID())
 	job.SetInstanceID(jobInstanceID)
@@ -71,6 +71,16 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 	if err := dockerx.StartContainer(ctx, jr.cli, containerID); err != nil {
 		_ = dockerx.RemoveContainer(ctx, jr.cli, containerID)
 		return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("start container: %w", err)}, nil
+	}
+
+	// Copy workspace into container
+	if err := dockerx.CopyWorkspace(ctx, jr.cli, dockerx.CopyConfig{
+		SourcePath:  workspacePath,
+		TargetPath:  "/github/workspace",
+		ContainerID: containerID,
+	}); err != nil {
+		_ = dockerx.RemoveContainer(ctx, jr.cli, containerID)
+		return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("copy workspace: %w", err)}, nil
 	}
 
 	// Create directory structure for GITHUB_ENV, GITHUB_PATH, GITHUB_OUTPUT in the container
