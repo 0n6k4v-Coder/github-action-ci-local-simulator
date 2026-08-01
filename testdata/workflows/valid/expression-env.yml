@@ -1,0 +1,13 @@
+name: expression-env
+
+on: push
+
+env:
+  MY_VAR: hello
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Use env context
+        run: test "${{ env.MY_VAR }}" = "hello"

@@ -1,0 +1,14 @@
+name: step-outputs
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - id: meta
+        run: echo "version=1.2.3" >> "$GITHUB_OUTPUT"
+
+      - name: Use output
+        run: |
+          test "${{ steps.meta.outputs.version }}" = "1.2.3"

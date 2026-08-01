@@ -1,0 +1,22 @@
+name: env-precedence
+
+on: push
+
+env:
+  A: workflow
+  B: workflow
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      B: job
+      C: job
+    steps:
+      - name: Check env
+        env:
+          C: step
+        run: |
+          test "$A" = "workflow"
+          test "$B" = "job"
+          test "$C" = "step"

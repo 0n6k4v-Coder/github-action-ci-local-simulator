@@ -1,0 +1,26 @@
+name: defaults-run
+
+on: push
+
+defaults:
+  run:
+    shell: bash
+    working-directory: ./app
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: sh
+        working-directory: ./backend
+    steps:
+      - name: Check workflow defaults
+        run: |
+          test "$PWD" = "/github/workspace/backend"
+          echo "shell is sh"  # should use job default shell (sh)
+
+      - name: Override with step working-directory
+        working-directory: ./frontend
+        run: |
+          test "$PWD" = "/github/workspace/backend/frontend"

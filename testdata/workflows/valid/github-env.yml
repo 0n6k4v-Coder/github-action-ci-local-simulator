@@ -1,0 +1,13 @@
+name: github-env
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set variable
+        run: echo "MY_VAR=hello" >> "$GITHUB_ENV"
+
+      - name: Use variable
+        run: test "$MY_VAR" = "hello"

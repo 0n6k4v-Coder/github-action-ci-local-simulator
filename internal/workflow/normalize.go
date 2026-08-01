@@ -108,3 +108,33 @@ func (j *Job) GetNeedsAsString() string {
 		return fmt.Sprintf("%v", v)
 	}
 }
+
+// SetInstanceID sets the job instance ID.
+func (j *Job) SetInstanceID(id string) {
+	j.instanceID = id
+}
+
+// InstanceID returns the job instance ID.
+func (j *Job) InstanceID() string {
+	return j.instanceID
+}
+
+// SetGitHubEnvPath sets the GITHUB_ENV file path.
+func (j *Job) SetGitHubEnvPath(path string) {
+	j.githubEnvPath = path
+}
+
+// GitHubEnvPath returns the GITHUB_ENV file path.
+func (j *Job) GitHubEnvPath() string {
+	return j.githubEnvPath
+}
+
+// SetGitHubPathPath sets the GITHUB_PATH file path.
+func (j *Job) SetGitHubPathPath(path string) {
+	j.githubPathPath = path
+}
+
+// GitHubPathPath returns the GITHUB_PATH file path.
+func (j *Job) GitHubPathPath() string {
+	return j.githubPathPath
+}

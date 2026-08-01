@@ -17,13 +17,14 @@ type ExecResult struct {
 }
 
 // ExecCommand executes a command inside a running container.
-func ExecCommand(ctx context.Context, cli *client.Client, containerID, workingDir string, cmd []string) (*ExecResult, error) {
+func ExecCommand(ctx context.Context, cli *client.Client, containerID, workingDir string, cmd []string, env map[string]string) (*ExecResult, error) {
 	// Create exec instance
 	execConfig := container.ExecOptions{
 		AttachStdout: true,
 		AttachStderr: true,
 		Cmd:          cmd,
 		WorkingDir:   workingDir,
+		Env:          envToSlice(env),
 	}
 
 	createResp, err := cli.ContainerExecCreate(ctx, containerID, execConfig)
@@ -98,4 +99,13 @@ func readExecOutput(reader io.Reader) (string, string, error) {
 	}
 
 	return stdout, stderr, nil
+}
+
+// envToSlice converts a map to a slice of "KEY=VALUE" strings.
+func envToSlice(env map[string]string) []string {
+	result := make([]string, 0, len(env))
+	for k, v := range env {
+		result = append(result, fmt.Sprintf("%s=%s", k, v))
+	}
+	return result
 }

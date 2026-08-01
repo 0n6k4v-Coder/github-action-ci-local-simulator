@@ -2,10 +2,11 @@ package workflow
 
 // Workflow represents a GitHub Actions workflow file.
 type Workflow struct {
-	Name string         `yaml:"name"`
-	On   interface{}    `yaml:"on"`
-	Env  map[string]any `yaml:"env"`
-	Jobs map[string]Job `yaml:"jobs"`
+	Name     string         `yaml:"name"`
+	On       interface{}    `yaml:"on"`
+	Env      map[string]any `yaml:"env"`
+	Jobs     map[string]Job `yaml:"jobs"`
+	Defaults *Defaults      `yaml:"defaults"`
 }
 
 // Job represents a job in a workflow.
@@ -20,6 +21,10 @@ type Job struct {
 	Outputs         map[string]string `yaml:"outputs"`
 	TimeoutMinutes  int               `yaml:"timeout-minutes"`
 	Defaults        *Defaults         `yaml:"defaults"`
+	// Runtime fields
+	instanceID      string
+	githubEnvPath   string
+	githubPathPath  string
 }
 
 // Strategy represents the strategy configuration for a job.

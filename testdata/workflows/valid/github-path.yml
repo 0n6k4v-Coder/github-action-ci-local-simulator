@@ -1,0 +1,18 @@
+name: github-path
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create bin
+        run: |
+          mkdir -p /tmp/custom-bin
+          echo '#!/usr/bin/env bash' > /tmp/custom-bin/my-tool
+          echo 'echo custom-tool-output' >> /tmp/custom-bin/my-tool
+          chmod +x /tmp/custom-bin/my-tool
+          echo "/tmp/custom-bin" >> "$GITHUB_PATH"
+
+      - name: Use custom tool
+        run: my-tool

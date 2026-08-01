@@ -94,7 +94,7 @@ func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths
 		for jobID, job := range wf.Jobs {
 			fmt.Printf("  Job: %s\n", jobID)
 
-			result, err := jobRunner.RunJob(ctx, job, jobID, workflowEnv)
+			result, err := jobRunner.RunJob(ctx, job, jobID, workflowEnv, wf.Defaults, wf)
 			if err != nil {
 				return fmt.Errorf("run job %s: %w", jobID, err)
 			}
