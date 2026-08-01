@@ -25,14 +25,6 @@ func NewJobRunner(cli *client.Client) *JobRunner {
 	}
 }
 
-// JobResult represents the result of executing a job.
-type JobResult struct {
-	JobID    string
-	Steps    []*StepResult
-	ExitCode int
-	Error    error
-}
-
 // RunJob executes a job in a Docker container.
 func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string, workflowEnv map[string]string, workflowDefaults *workflow.Defaults, wf *workflow.Workflow) (*JobResult, error) {
 	// Generate job instance ID

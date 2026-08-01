@@ -80,10 +80,3 @@ func (sr *StepRunner) buildCommand(runCommand, shell string) []string {
 
 	return cmd
 }
-
-// StepResult represents the result of executing a step.
-type StepResult struct {
-	ExitCode int
-	Stdout   string
-	Stderr   string
-}
