@@ -8,7 +8,6 @@ import (
 )
 
 // WithTimeout returns a context with a timeout and its cancel function.
-// This is a minimal helper for Phase 4B timeout support.
 func WithTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(ctx, timeout)
 }
