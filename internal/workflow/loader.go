@@ -78,3 +78,37 @@ func loadWorkflowsFromDir(dirPath string) ([]*Workflow, error) {
 func DefaultWorkflowDir() string {
 	return ".github/workflows"
 }
+
+// ExpandWorkflowJobs expands matrix jobs in a workflow.
+// Returns a new workflow with expanded jobs.
+func ExpandWorkflowJobs(wf *Workflow) (*Workflow, error) {
+	if wf == nil {
+		return nil, fmt.Errorf("workflow is nil")
+	}
+
+	expandedWf := &Workflow{
+		Name:     wf.Name,
+		On:       wf.On,
+		Env:      wf.Env,
+		Defaults: wf.Defaults,
+		Jobs:     make(map[string]Job),
+	}
+
+	for jobID, job := range wf.Jobs {
+		expandedJobs, err := ExpandMatrix(jobID, job)
+		if err != nil {
+			return nil, fmt.Errorf("expand matrix for job %q: %w", jobID, err)
+		}
+
+		for _, expJob := range expandedJobs {
+			expandedID := jobID
+			if len(expandedJobs) > 1 {
+				// Use the instance ID which includes the matrix suffix
+				expandedID = expJob.InstanceID()
+			}
+			expandedWf.Jobs[expandedID] = expJob
+		}
+	}
+
+	return expandedWf, nil
+}

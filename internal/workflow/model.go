@@ -19,7 +19,7 @@ type Job struct {
 	Steps           []Step            `yaml:"steps"`
 	Strategy        *Strategy         `yaml:"strategy"`
 	Outputs         map[string]string `yaml:"outputs"`
-	TimeoutMinutes  int               `yaml:"timeout-minutes"`
+	TimeoutMinutes  float64           `yaml:"timeout-minutes"`
 	Defaults        *Defaults         `yaml:"defaults"`
 	// Runtime fields
 	instanceID      string
@@ -57,5 +57,5 @@ type Step struct {
 	Shell             string         `yaml:"shell"`
 	WorkingDirectory  string         `yaml:"working-directory"`
 	ContinueOnError   bool           `yaml:"continue-on-error"`
-	TimeoutMinutes    int            `yaml:"timeout-minutes"`
+	TimeoutMinutes    float64        `yaml:"timeout-minutes"`
 }

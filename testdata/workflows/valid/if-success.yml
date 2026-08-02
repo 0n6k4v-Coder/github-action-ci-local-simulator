@@ -1,0 +1,15 @@
+name: if-success
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo first
+
+      - if: success()
+        run: echo second
+
+      - if: failure()
+        run: exit 1

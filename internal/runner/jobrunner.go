@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/0n6k4v-Coder/github-action-ci-local-simulator/internal/dockerx"
 	"github.com/0n6k4v-Coder/github-action-ci-local-simulator/internal/workflow"
@@ -30,6 +31,25 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 	// Generate job instance ID
 	jobInstanceID := fmt.Sprintf("%s-%s", jobID, generateShortID())
 	job.SetInstanceID(jobInstanceID)
+
+	// Evaluate job-level if condition
+	if job.If != "" {
+		// Create a temporary expression context for job-level if
+		githubContext := buildGitHubContext(jobID, jobInstanceID)
+		runnerContext := buildRunnerContext()
+		exprContext := NewExpressionContext(workflowEnv, githubContext, runnerContext, NewStepOutputs())
+		if job.GetMatrixContext() != nil {
+			exprContext.SetMatrix(job.GetMatrixContext())
+		}
+		
+		shouldRun, err := evaluateIfConditionStatic(job.If, exprContext)
+		if err != nil {
+			return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("evaluate job if condition: %w", err)}, nil
+		}
+		if !shouldRun {
+			return &JobResult{JobID: jobID, ExitCode: 0, Status: StatusSkipped}, nil
+		}
+	}
 
 	// Resolve image from runs-on
 	runsOn := getRunsOn(job)
@@ -90,7 +110,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 		_ = dockerx.RemoveContainer(ctx, jr.cli, containerID)
 		return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("create directories in container: %w", err)}, nil
 	}
-	
+
 	// Create step-specific output directories
 	for _, step := range job.Steps {
 		if step.ID != "" {
@@ -102,7 +122,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 			}
 		}
 	}
-	
+
 	// Pre-create working directories from workflow/job defaults
 	if workflowDefaults != nil && workflowDefaults.Run != nil && workflowDefaults.Run.WorkingDirectory != "" {
 		wfDir := workflowDefaults.Run.WorkingDirectory
@@ -115,7 +135,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 			return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("create workflow working dir: %w", err)}, nil
 		}
 	}
-	
+
 	// Create job working directory
 	jobWorkingDir := workingDir
 	if job.Defaults != nil && job.Defaults.Run != nil && job.Defaults.Run.WorkingDirectory != "" {
@@ -130,7 +150,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 		}
 		jobWorkingDir = jobDir
 	}
-	
+
 	// Create step working directories
 	for _, step := range job.Steps {
 		if step.WorkingDirectory != "" {
@@ -159,7 +179,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 	for k, v := range job.Env {
 		jobEnv[k] = fmt.Sprintf("%v", v)
 	}
-	
+
 	// Ensure PATH is initialized from container
 	if jobEnv["PATH"] == "" {
 		jobEnv["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -168,8 +188,17 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 	// Create step outputs store
 	stepOutputs := NewStepOutputs()
 
-	// Create expression context
+	// Create expression context with matrix support
 	exprContext := NewExpressionContext(jobEnv, githubContext, runnerContext, stepOutputs)
+	if job.GetMatrixContext() != nil {
+		exprContext.SetMatrix(job.GetMatrixContext())
+	}
+
+	// Parse job timeout
+	var jobTimeout time.Duration
+	if job.TimeoutMinutes > 0 {
+		jobTimeout, _ = ParseTimeoutMinutes(job.TimeoutMinutes)
+	}
 
 	// Run steps sequentially
 	var stepResults []*StepResult
@@ -179,6 +208,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 	for i, step := range job.Steps {
 		// Set current step ID for expression context
 		exprContext.SetCurrentStepID(step.ID)
+		exprContext.SetStepResults(stepResults)
 
 		// Resolve shell with precedence: step.shell > job.defaults.run.shell > workflow.defaults.run.shell > bash
 		shell := resolveShell(step, job.Defaults, workflowDefaults)
@@ -192,7 +222,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 		} else if workflowDefaults != nil && workflowDefaults.Run != nil && workflowDefaults.Run.WorkingDirectory != "" {
 			parentWorkingDir = resolveWorkingDirectory(workflow.Step{WorkingDirectory: workflowDefaults.Run.WorkingDirectory}, nil, workflowDefaults, workingDir)
 		}
-		
+
 		// Now resolve the step's working directory relative to parent
 		stepWorkingDir := resolveWorkingDirectory(step, nil, nil, parentWorkingDir)
 
@@ -228,26 +258,28 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 			stepEnv["GITHUB_PATH"] = githubPathFile.Path()
 		}
 
-		// Run step
-		result, err := stepRunner.RunStep(ctx, step, stepEnv, shell, stepWorkingDir, githubOutputFile, exprContext)
+		// Run step with timeout
+		result, err := stepRunner.RunStep(ctx, step, stepEnv, shell, stepWorkingDir, githubOutputFile, exprContext, jobTimeout, 0)
 		if err != nil {
-			// Check if continue-on-error
-			if step.ContinueOnError {
-				stepResults = append(stepResults, &StepResult{
-					ExitCode: 1,
-					Stdout:   "",
-					Stderr:   err.Error(),
-				})
-				continue
-			}
 			firstError = err
 			exitCode = 1
 			break
 		}
 
+		// Update step results for status function evaluation
+		stepResults = append(stepResults, result)
+		exprContext.SetStepResults(stepResults)
+
 		fmt.Printf("    Step %d stdout:\n%s", i+1, result.Stdout)
 		if result.Stderr != "" {
 			fmt.Printf("    Step %d stderr:\n%s", i+1, result.Stderr)
+		}
+
+		// Check for timeout
+		if result.ExitCode == 5 {
+			exitCode = 5
+			firstError = fmt.Errorf("step %d timed out", i+1)
+			break
 		}
 
 		// Check if file exists in container
@@ -262,7 +294,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 			exitCode = 1
 			break
 		}
-		
+
 		// Parse the content
 		envVars := make(map[string]string)
 		lines := strings.Split(catResult.Stdout, "\n")
@@ -276,12 +308,12 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 				envVars[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
 			}
 		}
-		
+
 		// Merge into job environment
 		for k, v := range envVars {
 			jobEnv[k] = v
 		}
-		
+
 		// Clear the file in container
 		clearCmd := []string{"truncate", "-s", "0", githubEnvFile.Path()}
 		if _, err := dockerx.ExecCommand(ctx, jr.cli, containerID, "/", clearCmd, nil); err != nil {
@@ -289,9 +321,13 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 			exitCode = 1
 			break
 		}
-		
-		// Update expression context
+
+		// Update expression context with new env
 		exprContext = NewExpressionContext(jobEnv, githubContext, runnerContext, stepOutputs)
+		if job.GetMatrixContext() != nil {
+			exprContext.SetMatrix(job.GetMatrixContext())
+		}
+		exprContext.SetStepResults(stepResults)
 
 		// Parse GITHUB_PATH after step - read from container since we're using a volume
 		catPathCmd := []string{"cat", githubPathFile.Path()}
@@ -301,7 +337,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 			exitCode = 1
 			break
 		}
-		
+
 		// Parse the content
 		var paths []string
 		pathLines := strings.Split(catPathResult.Stdout, "\n")
@@ -311,15 +347,19 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 				paths = append(paths, line)
 			}
 		}
-		
+
 		if len(paths) > 0 {
 			// Prepend to PATH
 			existingPath := jobEnv["PATH"]
 			newPath := strings.Join(paths, ":") + ":" + existingPath
 			jobEnv["PATH"] = newPath
 			exprContext = NewExpressionContext(jobEnv, githubContext, runnerContext, stepOutputs)
+			if job.GetMatrixContext() != nil {
+				exprContext.SetMatrix(job.GetMatrixContext())
+			}
+			exprContext.SetStepResults(stepResults)
 		}
-		
+
 		// Clear the file in container
 		clearPathCmd := []string{"truncate", "-s", "0", githubPathFile.Path()}
 		if _, err := dockerx.ExecCommand(ctx, jr.cli, containerID, "/", clearPathCmd, nil); err != nil {
@@ -327,7 +367,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 			exitCode = 1
 			break
 		}
-		
+
 		// Parse GITHUB_OUTPUT after step - read from container since we're using a volume
 		catOutputCmd := []string{"cat", githubOutputFile.Path()}
 		catOutputResult, err := dockerx.ExecCommand(ctx, jr.cli, containerID, "/", catOutputCmd, nil)
@@ -336,7 +376,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 			exitCode = 1
 			break
 		}
-		
+
 		// Parse the content (supports both single-line and multiline)
 		outputs := make(map[string]string)
 		content := catOutputResult.Stdout
@@ -374,11 +414,11 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 			}
 			i++
 		}
-		
+
 		if len(outputs) > 0 {
 			stepOutputs.SetOutputs(step.ID, outputs)
 		}
-		
+
 		// Clear the file in container
 		clearOutputCmd := []string{"truncate", "-s", "0", githubOutputFile.Path()}
 		if _, err := dockerx.ExecCommand(ctx, jr.cli, containerID, "/", clearOutputCmd, nil); err != nil {
@@ -387,15 +427,25 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 			break
 		}
 
-		stepResults = append(stepResults, result)
-		if result.ExitCode != 0 {
+		// Handle step failure based on conclusion (not raw outcome)
+		if result.Conclusion == StatusFailure {
 			if step.ContinueOnError {
+				// Continue to next step, but track the conclusion for failure()
 				continue
 			}
 			exitCode = result.ExitCode
 			firstError = fmt.Errorf("step %d failed with exit code %d", i+1, result.ExitCode)
 			break
 		}
+	}
+
+	// Determine overall job status
+	jobStatus := StatusSuccess
+	if firstError != nil || exitCode != 0 {
+		jobStatus = StatusFailure
+	}
+	if exitCode == 5 {
+		jobStatus = StatusFailure
 	}
 
 	// Cleanup container
@@ -409,7 +459,36 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 		Steps:    stepResults,
 		ExitCode: exitCode,
 		Error:    firstError,
+		Status:   jobStatus,
 	}, nil
+}
+
+// evaluateIfConditionStatic evaluates an if condition without running a step.
+func evaluateIfConditionStatic(condition string, exprContext *ExpressionContext) (bool, error) {
+	interpolated, err := exprContext.Interpolate(condition)
+	if err != nil {
+		return false, err
+	}
+
+	// Also handle bare expressions (without ${{ }})
+	trimmed := strings.TrimSpace(interpolated)
+	if !strings.HasPrefix(trimmed, "${{") {
+		interpolated = "${{" + trimmed + "}}"
+	}
+
+	result, err := exprContext.Interpolate(interpolated)
+	if err != nil {
+		return false, err
+	}
+
+	switch strings.ToLower(strings.TrimSpace(result)) {
+	case "true", "1", "yes":
+		return true, nil
+	case "false", "0", "no":
+		return false, nil
+	default:
+		return false, fmt.Errorf("if condition evaluated to non-boolean: %s", result)
+	}
 }
 
 // getRunsOn extracts the runs-on value from a job.
@@ -498,7 +577,7 @@ func resolveWorkingDirectory(step workflow.Step, jobDefaults, workflowDefaults *
 	} else {
 		return defaultWorkingDir
 	}
-	
+
 	// If relative, resolve against defaultWorkingDir
 	if !filepath.IsAbs(dir) {
 		return filepath.Join(defaultWorkingDir, dir)

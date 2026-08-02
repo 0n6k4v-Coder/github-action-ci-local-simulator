@@ -53,6 +53,13 @@ func validateJob(jobID string, job *Job) error {
 		return &ValidationError{JobID: jobID, Message: "runs-on is required"}
 	}
 
+	// Validate strategy/matrix if present
+	if job.Strategy != nil && job.Strategy.Matrix != nil {
+		if err := validateMatrix(jobID, job.Strategy.Matrix); err != nil {
+			return err
+		}
+	}
+
 	// Validate steps
 	if len(job.Steps) == 0 {
 		return &ValidationError{JobID: jobID, Message: "job must have at least one step"}
@@ -64,6 +71,57 @@ func validateJob(jobID string, job *Job) error {
 		}
 	}
 
+	// Validate job-level if condition
+	if job.If != "" {
+		if err := validateIfCondition(job.If); err != nil {
+			return &ValidationError{JobID: jobID, Message: fmt.Sprintf("invalid if condition: %v", err)}
+		}
+	}
+
+	// Validate timeout-minutes
+	if job.TimeoutMinutes < 0 {
+		return &ValidationError{JobID: jobID, Message: "timeout-minutes cannot be negative"}
+	}
+
+	return nil
+}
+
+func validateMatrix(jobID string, matrix map[string]any) error {
+	for key, value := range matrix {
+		if key == "include" || key == "exclude" {
+			// Validate include/exclude format
+			if err := validateIncludeExclude(key, value); err != nil {
+				return &ValidationError{JobID: jobID, Message: fmt.Sprintf("matrix.%s: %v", key, err)}
+			}
+			continue
+		}
+		// Validate matrix dimension values
+		switch v := value.(type) {
+		case []interface{}:
+			if len(v) == 0 {
+				return &ValidationError{JobID: jobID, Message: fmt.Sprintf("matrix dimension %q cannot be empty", key)}
+			}
+		case []string:
+			if len(v) == 0 {
+				return &ValidationError{JobID: jobID, Message: fmt.Sprintf("matrix dimension %q cannot be empty", key)}
+			}
+		default:
+			return &ValidationError{JobID: jobID, Message: fmt.Sprintf("matrix dimension %q must be a list, got %T", key, value)}
+		}
+	}
+	return nil
+}
+
+func validateIncludeExclude(key string, value any) error {
+	list, ok := value.([]interface{})
+	if !ok {
+		return fmt.Errorf("%s must be a list of objects", key)
+	}
+	for i, item := range list {
+		if _, ok := item.(map[string]any); !ok {
+			return fmt.Errorf("%s[%d] must be an object", key, i)
+		}
+	}
 	return nil
 }
 
@@ -79,6 +137,51 @@ func validateStep(jobID string, stepIndex int, step *Step) error {
 		return &ValidationError{JobID: jobID, Step: stepIndex, Message: "step must have either 'run' or 'uses'"}
 	}
 
+	// Validate step-level if condition
+	if step.If != "" {
+		if err := validateIfCondition(step.If); err != nil {
+			return &ValidationError{JobID: jobID, Step: stepIndex, Message: fmt.Sprintf("invalid if condition: %v", err)}
+		}
+	}
+
+	// Validate timeout-minutes
+	if step.TimeoutMinutes < 0 {
+		return &ValidationError{JobID: jobID, Step: stepIndex, Message: "timeout-minutes cannot be negative"}
+	}
+
+	return nil
+}
+
+// validateIfCondition does basic validation of if condition syntax.
+func validateIfCondition(condition string) error {
+	trimmed := strings.TrimSpace(condition)
+	if trimmed == "" {
+		return fmt.Errorf("empty condition")
+	}
+	
+	// Allow both ${{ ... }} and bare expressions
+	if strings.HasPrefix(trimmed, "${{") && strings.HasSuffix(trimmed, "}}") {
+		inner := strings.TrimSpace(trimmed[3 : len(trimmed)-2])
+		if inner == "" {
+			return fmt.Errorf("empty expression in ${{ }}")
+		}
+	}
+	
+	// Check for supported status functions
+	supportedFuncs := []string{"success()", "failure()", "always()", "cancelled()"}
+	hasSupportedFunc := false
+	for _, fn := range supportedFuncs {
+		if strings.Contains(trimmed, fn) {
+			hasSupportedFunc = true
+			break
+		}
+	}
+	
+	// Also allow bare function calls without ${{ }}
+	if !hasSupportedFunc && !strings.Contains(trimmed, "(") {
+		// Might be a context reference like "github.ref" - allow for now
+	}
+	
 	return nil
 }
 
@@ -100,6 +203,8 @@ type DryRunJob struct {
 	Name      string
 	RunsOn    string
 	Needs     string
+	If        string
+	Matrix    map[string]any
 	Steps     []DryRunStep
 }
 
@@ -112,7 +217,7 @@ type DryRunStep struct {
 	Uses             string
 	If               string
 	ContinueOnError  bool
-	TimeoutMinutes   int
+	TimeoutMinutes   float64
 }
 
 // GenerateDryRunPlan generates a dry-run plan from the workflow.
@@ -124,28 +229,85 @@ func GenerateDryRunPlan(wf *Workflow, path string) *DryRunPlan {
 	}
 
 	for id, job := range wf.Jobs {
-		dryRunJob := DryRunJob{
-			ID:     id,
-			Name:   job.Name,
-			RunsOn: job.GetRunsOnAsString(),
-			Needs:  job.GetNeedsAsString(),
-			Steps:  make([]DryRunStep, len(job.Steps)),
-		}
-
-		for i, step := range job.Steps {
-			dryRunJob.Steps[i] = DryRunStep{
-				Index:           i + 1,
-				ID:              step.ID,
-				Name:            step.Name,
-				Run:             step.Run,
-				Uses:            step.Uses,
-				If:              step.If,
-				ContinueOnError: step.ContinueOnError,
-				TimeoutMinutes:  step.TimeoutMinutes,
+		// Check if job has matrix
+		if job.HasMatrix() {
+			// Expand matrix jobs for dry-run
+			expandedJobs, err := ExpandMatrix(id, job)
+			if err != nil {
+				// If expansion fails, just show the original job
+				dryRunJob := DryRunJob{
+					ID:     id,
+					Name:   job.Name,
+					RunsOn: job.GetRunsOnAsString(),
+					Needs:  job.GetNeedsAsString(),
+					If:     job.If,
+					Matrix: job.GetMatrixContext(),
+					Steps:  make([]DryRunStep, len(job.Steps)),
+				}
+				for i, step := range job.Steps {
+					dryRunJob.Steps[i] = DryRunStep{
+						Index:           i + 1,
+						ID:              step.ID,
+						Name:            step.Name,
+						Run:             step.Run,
+						Uses:            step.Uses,
+						If:              step.If,
+						ContinueOnError: step.ContinueOnError,
+						TimeoutMinutes:  step.TimeoutMinutes,
+					}
+				}
+				plan.Jobs = append(plan.Jobs, dryRunJob)
+			} else {
+				// Add each expanded job
+				for _, expJob := range expandedJobs {
+					dryRunJob := DryRunJob{
+						ID:     expJob.InstanceID(),
+						Name:   expJob.Name,
+						RunsOn: expJob.GetRunsOnAsString(),
+						Needs:  expJob.GetNeedsAsString(),
+						If:     expJob.If,
+						Matrix: expJob.GetMatrixContext(),
+						Steps:  make([]DryRunStep, len(expJob.Steps)),
+					}
+					for i, step := range expJob.Steps {
+						dryRunJob.Steps[i] = DryRunStep{
+							Index:           i + 1,
+							ID:              step.ID,
+							Name:            step.Name,
+							Run:             step.Run,
+							Uses:            step.Uses,
+							If:              step.If,
+							ContinueOnError: step.ContinueOnError,
+							TimeoutMinutes:  step.TimeoutMinutes,
+						}
+					}
+					plan.Jobs = append(plan.Jobs, dryRunJob)
+				}
 			}
+		} else {
+			dryRunJob := DryRunJob{
+				ID:     id,
+				Name:   job.Name,
+				RunsOn: job.GetRunsOnAsString(),
+				Needs:  job.GetNeedsAsString(),
+				If:     job.If,
+				Matrix: nil,
+				Steps:  make([]DryRunStep, len(job.Steps)),
+			}
+			for i, step := range job.Steps {
+				dryRunJob.Steps[i] = DryRunStep{
+					Index:           i + 1,
+					ID:              step.ID,
+					Name:            step.Name,
+					Run:             step.Run,
+					Uses:            step.Uses,
+					If:              step.If,
+					ContinueOnError: step.ContinueOnError,
+					TimeoutMinutes:  step.TimeoutMinutes,
+				}
+			}
+			plan.Jobs = append(plan.Jobs, dryRunJob)
 		}
-
-		plan.Jobs = append(plan.Jobs, dryRunJob)
 	}
 
 	return plan

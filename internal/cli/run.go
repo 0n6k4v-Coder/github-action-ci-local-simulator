@@ -90,8 +90,14 @@ func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths
 			workflowEnv[k] = fmt.Sprintf("%v", v)
 		}
 
+		// Expand matrix jobs
+		expandedWf, err := workflow.ExpandWorkflowJobs(wf)
+		if err != nil {
+			return fmt.Errorf("expand matrix jobs: %w", err)
+		}
+
 		// Run each job in the workflow
-		for jobID, job := range wf.Jobs {
+		for jobID, job := range expandedWf.Jobs {
 			fmt.Printf("  Job: %s\n", jobID)
 
 			// Determine workspace path - use the directory containing the workflow file
@@ -238,7 +244,7 @@ func printDryRunPlan(plan *workflow.DryRunPlan) {
 				fmt.Printf(" continue-on-error=true")
 			}
 			if step.TimeoutMinutes > 0 {
-				fmt.Printf(" timeout-minutes=%d", step.TimeoutMinutes)
+				fmt.Printf(" timeout-minutes=%g", step.TimeoutMinutes)
 			}
 			fmt.Println()
 		}

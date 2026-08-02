@@ -1,0 +1,12 @@
+name: matrix
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version: ["a", "b", "c"]
+    steps:
+      - run: echo "version=${{ matrix.version }}"

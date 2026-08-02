@@ -3,6 +3,8 @@ package runner
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/0n6k4v-Coder/github-action-ci-local-simulator/internal/dockerx"
 	"github.com/0n6k4v-Coder/github-action-ci-local-simulator/internal/workflow"
@@ -26,7 +28,26 @@ func NewStepRunner(cli *client.Client, containerID, workingDir string) *StepRunn
 }
 
 // RunStep executes a single step and returns the result.
-func (sr *StepRunner) RunStep(ctx context.Context, step workflow.Step, jobEnv map[string]string, shell, workingDir string, githubOutputFile *GitHubOutputFile, exprContext *ExpressionContext) (*StepResult, error) {
+func (sr *StepRunner) RunStep(ctx context.Context, step workflow.Step, jobEnv map[string]string, shell, workingDir string, githubOutputFile *GitHubOutputFile, exprContext *ExpressionContext, jobTimeout, stepTimeout time.Duration) (*StepResult, error) {
+	// Evaluate if condition
+	if step.If != "" {
+		shouldRun, err := sr.evaluateIfCondition(ctx, step.If, exprContext)
+		if err != nil {
+			return nil, fmt.Errorf("evaluate if condition: %w", err)
+		}
+		if !shouldRun {
+			return &StepResult{
+				ExitCode:   0,
+				Stdout:     "",
+				Stderr:     "",
+				Status:     StatusSkipped,
+				Outcome:    StatusSkipped,
+				Conclusion: StatusSkipped,
+				ContinueOnError: step.ContinueOnError,
+			}, nil
+		}
+	}
+
 	// Skip if step has 'uses' (actions not supported yet)
 	if step.Uses != "" {
 		return nil, fmt.Errorf("actions (uses) not yet supported: %s", step.Uses)
@@ -51,17 +72,98 @@ func (sr *StepRunner) RunStep(ctx context.Context, step workflow.Step, jobEnv ma
 		workingDir = sr.workingDir
 	}
 
-	// Execute in container
-	result, err := dockerx.ExecCommand(ctx, sr.cli, sr.containerID, workingDir, cmd, jobEnv)
-	if err != nil {
-		return nil, fmt.Errorf("execute step: %w", err)
+	// Determine effective timeout for this step
+	effectiveTimeout := stepTimeout
+	if step.TimeoutMinutes > 0 {
+		stepTimeoutDuration, err := ParseTimeoutMinutes(step.TimeoutMinutes)
+		if err != nil {
+			return nil, fmt.Errorf("parse step timeout-minutes: %w", err)
+		}
+		effectiveTimeout = stepTimeoutDuration
+	} else if jobTimeout > 0 {
+		effectiveTimeout = jobTimeout
+	}
+
+	// Execute in container with timeout
+	var result *dockerx.ExecResult
+	if effectiveTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, effectiveTimeout)
+		defer cancel()
+		result, err = dockerx.ExecCommand(timeoutCtx, sr.cli, sr.containerID, workingDir, cmd, jobEnv)
+		if err != nil {
+			// Check if it's a timeout error
+			if timeoutCtx.Err() == context.DeadlineExceeded {
+				return &StepResult{
+					ExitCode:   5,
+					Stdout:     "",
+					Stderr:     "step timed out",
+					Status:     StatusFailure,
+					Outcome:    StatusFailure,
+					Conclusion: StatusFailure,
+					ContinueOnError: step.ContinueOnError,
+				}, nil
+			}
+			return nil, fmt.Errorf("execute step: %w", err)
+		}
+	} else {
+		result, err = dockerx.ExecCommand(ctx, sr.cli, sr.containerID, workingDir, cmd, jobEnv)
+		if err != nil {
+			return nil, fmt.Errorf("execute step: %w", err)
+		}
+	}
+
+	// Determine outcome and conclusion
+	outcome := StatusSuccess
+	if result.ExitCode != 0 {
+		outcome = StatusFailure
+	}
+
+	conclusion := outcome
+	if step.ContinueOnError && outcome == StatusFailure {
+		conclusion = StatusSuccess
 	}
 
 	return &StepResult{
-		ExitCode: result.ExitCode,
-		Stdout:   result.Stdout,
-		Stderr:   result.Stderr,
+		ExitCode:         result.ExitCode,
+		Stdout:           result.Stdout,
+		Stderr:           result.Stderr,
+		Status:           conclusion, // Use conclusion as the status
+		Outcome:          outcome,
+		Conclusion:       conclusion,
+		ContinueOnError:  step.ContinueOnError,
 	}, nil
+}
+
+// evaluateIfCondition evaluates the if condition for a step.
+func (sr *StepRunner) evaluateIfCondition(ctx context.Context, condition string, exprContext *ExpressionContext) (bool, error) {
+	// Interpolate the condition first
+	interpolated, err := exprContext.Interpolate(condition)
+	if err != nil {
+		return false, err
+	}
+
+	// Also handle bare expressions (without ${{ }})
+	trimmed := strings.TrimSpace(interpolated)
+	if !strings.HasPrefix(trimmed, "${{") {
+		// Try to evaluate as bare expression
+		interpolated = "${{" + trimmed + "}}"
+	}
+
+	// Re-interpolate to evaluate functions
+	result, err := exprContext.Interpolate(interpolated)
+	if err != nil {
+		return false, err
+	}
+
+	// Parse result as boolean
+	switch strings.ToLower(strings.TrimSpace(result)) {
+	case "true", "1", "yes":
+		return true, nil
+	case "false", "0", "no":
+		return false, nil
+	default:
+		return false, fmt.Errorf("if condition evaluated to non-boolean: %s", result)
+	}
 }
 
 // buildCommand builds the command to execute for a run step.

@@ -1,0 +1,19 @@
+name: matrix-include-exclude
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: ["ubuntu", "debian"]
+        version: ["1", "2"]
+        exclude:
+          - os: "debian"
+            version: "1"
+        include:
+          - os: "ubuntu"
+            version: "special"
+    steps:
+      - run: echo "os=${{ matrix.os }} version=${{ matrix.version }}"

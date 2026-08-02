@@ -1,0 +1,19 @@
+name: continue-on-error
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - id: fail
+        run: exit 1
+        continue-on-error: true
+
+      - id: should_not_run
+        if: failure()
+        run: exit 1
+
+      - id: should_run
+        if: success()
+        run: echo ok
