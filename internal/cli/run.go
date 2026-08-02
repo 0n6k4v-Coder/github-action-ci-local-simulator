@@ -38,17 +38,22 @@ func newRunCmd() *cobra.Command {
 			}
 
 			// Process each workflow
-			for i, wf := range workflows {
-				// Normalize
-				if err := workflow.Normalize(wf); err != nil {
-					return fmt.Errorf("normalize workflow %s: %w", paths[i], err)
-				}
+					for i, wf := range workflows {
+						// Normalize
+						if err := workflow.Normalize(wf); err != nil {
+							return fmt.Errorf("normalize workflow %s: %w", paths[i], err)
+						}
 
-				// Validate
-				if err := workflow.Validate(wf); err != nil {
-					return fmt.Errorf("validate workflow %s: %w", paths[i], err)
-				}
-			}
+						// Validate
+						if err := workflow.Validate(wf); err != nil {
+							// Check if it's a validation error with exit code
+							if verr, ok := err.(*workflow.ValidationErrorWithCode); ok {
+								fmt.Fprintf(os.Stderr, "Error: %v\n", verr)
+								os.Exit(verr.ExitCode)
+							}
+							return fmt.Errorf("validate workflow %s: %w", paths[i], err)
+						}
+					}
 
 			// Generate dry-run plan
 			planSet := workflow.GenerateDryRunPlanSet(workflows, paths)

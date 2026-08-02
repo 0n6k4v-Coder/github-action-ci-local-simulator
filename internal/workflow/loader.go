@@ -97,6 +97,10 @@ func ExpandWorkflowJobs(wf *Workflow) (*Workflow, error) {
 	for jobID, job := range wf.Jobs {
 		expandedJobs, err := ExpandMatrix(jobID, job)
 		if err != nil {
+			// Check for zero job instances error
+			if strings.Contains(err.Error(), "zero job instances") {
+				return nil, NewValidationErrorWithCode(jobID, err.Error(), 2)
+			}
 			return nil, fmt.Errorf("expand matrix for job %q: %w", jobID, err)
 		}
 

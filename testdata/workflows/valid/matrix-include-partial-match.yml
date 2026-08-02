@@ -1,0 +1,16 @@
+name: matrix-include-partial-match
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: ["ubuntu", "debian"]
+        version: ["1", "2"]
+        include:
+          - os: "ubuntu"
+            extra: "yes"
+    steps:
+      - run: echo "os=${{ matrix.os }} version=${{ matrix.version }}"

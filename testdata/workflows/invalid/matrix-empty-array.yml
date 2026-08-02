@@ -1,0 +1,12 @@
+name: matrix-empty-array
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version: []
+    steps:
+      - run: echo "version=${{ matrix.version }}"

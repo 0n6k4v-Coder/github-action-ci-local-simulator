@@ -1,0 +1,15 @@
+name: matrix-include-new-key
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: ["ubuntu", "debian"]
+        version: ["1", "2"]
+        include:
+          - color: "red"
+    steps:
+      - run: echo "os=${{ matrix.os }} version=${{ matrix.version }} color=${{ matrix.color }}"

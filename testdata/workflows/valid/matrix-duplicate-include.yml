@@ -1,0 +1,15 @@
+name: matrix-duplicate-include
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: ["ubuntu"]
+        include:
+          - os: "ubuntu"
+          - os: "ubuntu"
+    steps:
+      - run: echo "os=${{ matrix.os }}"

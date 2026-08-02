@@ -86,29 +86,91 @@ func validateJob(jobID string, job *Job) error {
 	return nil
 }
 
+// ValidationErrorWithCode extends ValidationError with an exit code.
+type ValidationErrorWithCode struct {
+	ValidationError
+	ExitCode int
+}
+
+func (e *ValidationErrorWithCode) Error() string {
+	return e.ValidationError.Error()
+}
+
+// NewValidationErrorWithCode creates a validation error with a specific exit code.
+func NewValidationErrorWithCode(jobID, message string, exitCode int) *ValidationErrorWithCode {
+	return &ValidationErrorWithCode{
+		ValidationError: ValidationError{JobID: jobID, Message: message},
+		ExitCode:        exitCode,
+	}
+}
+
 func validateMatrix(jobID string, matrix map[string]any) error {
+	hasDimension := false
+	dimensions := make(map[string][]any)
+	var includeList []map[string]any
+	var excludeList []map[string]any
+
 	for key, value := range matrix {
 		if key == "include" || key == "exclude" {
 			// Validate include/exclude format
 			if err := validateIncludeExclude(key, value); err != nil {
 				return &ValidationError{JobID: jobID, Message: fmt.Sprintf("matrix.%s: %v", key, err)}
 			}
+			if key == "include" {
+				if inc, ok := value.([]interface{}); ok {
+					for _, item := range inc {
+						if m, ok := item.(map[string]any); ok {
+							includeList = append(includeList, m)
+						}
+					}
+				}
+			} else if key == "exclude" {
+				if exc, ok := value.([]interface{}); ok {
+					for _, item := range exc {
+						if m, ok := item.(map[string]any); ok {
+							excludeList = append(excludeList, m)
+						}
+					}
+				}
+			}
 			continue
 		}
+		hasDimension = true
 		// Validate matrix dimension values
 		switch v := value.(type) {
 		case []interface{}:
 			if len(v) == 0 {
-				return &ValidationError{JobID: jobID, Message: fmt.Sprintf("matrix dimension %q cannot be empty", key)}
+				return NewValidationErrorWithCode(jobID, fmt.Sprintf("matrix dimension %q cannot be empty", key), 2)
 			}
+			dimensions[key] = v
 		case []string:
 			if len(v) == 0 {
-				return &ValidationError{JobID: jobID, Message: fmt.Sprintf("matrix dimension %q cannot be empty", key)}
+				return NewValidationErrorWithCode(jobID, fmt.Sprintf("matrix dimension %q cannot be empty", key), 2)
 			}
+			vals := make([]any, len(v))
+			for i, s := range v {
+				vals[i] = s
+			}
+			dimensions[key] = vals
 		default:
 			return &ValidationError{JobID: jobID, Message: fmt.Sprintf("matrix dimension %q must be a list, got %T", key, value)}
 		}
 	}
+	// Check if matrix has no dimensions (only include/exclude)
+	if !hasDimension {
+		return NewValidationErrorWithCode(jobID, "matrix must have at least one dimension", 2)
+	}
+
+	// Check for zero job instances after exclude (simulate expansion for validation)
+	if len(dimensions) > 0 {
+		combinations := computeCartesianProduct(dimensions)
+		combinations = applyExcludes(combinations, excludeList)
+		// Don't apply includes for this check - just check if base + exclude produces zero
+		if len(combinations) == 0 {
+			return NewValidationErrorWithCode(jobID, "matrix expansion produced zero job instances after exclude", 2)
+		}
+	}
+
 	return nil
 }
 

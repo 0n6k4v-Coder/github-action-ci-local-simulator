@@ -1,0 +1,14 @@
+name: matrix-exclude-all
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: ["ubuntu"]
+        exclude:
+          - os: "ubuntu"
+    steps:
+      - run: echo "os=${{ matrix.os }}"

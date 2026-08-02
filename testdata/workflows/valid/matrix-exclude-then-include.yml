@@ -1,0 +1,17 @@
+name: matrix-exclude-then-include
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: ["ubuntu", "debian"]
+        exclude:
+          - os: "debian"
+        include:
+          - os: "debian"
+            version: "special"
+    steps:
+      - run: echo "os=${{ matrix.os }}"
