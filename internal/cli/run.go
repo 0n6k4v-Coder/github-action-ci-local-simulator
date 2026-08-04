@@ -185,6 +185,19 @@ func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths
 		}
 
 		if result.ExitCode != 0 {
+			for _, jobID := range jobIDs {
+				if jobRes, ok := result.Jobs[jobID]; ok && jobRes != nil {
+					if jobRes.Error != nil {
+						if ecErr, ok := jobRes.Error.(interface{ Code() int }); ok {
+							fmt.Fprintf(os.Stderr, "Error: %v\n", jobRes.Error)
+							os.Exit(ecErr.Code())
+						}
+					}
+					if jobRes.ExitCode != 0 {
+						os.Exit(jobRes.ExitCode)
+					}
+				}
+			}
 			return fmt.Errorf("workflow %s failed with exit code %d", wf.Name, result.ExitCode)
 		}
 	}

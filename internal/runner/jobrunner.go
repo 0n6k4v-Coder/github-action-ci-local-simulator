@@ -264,7 +264,11 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 		result, err := stepRunner.RunStep(ctx, step, stepEnv, shell, stepWorkingDir, githubOutputFile, exprContext, jobTimeout, 0)
 		if err != nil {
 			firstError = err
-			exitCode = 1
+			if ecErr, ok := err.(interface{ Code() int }); ok {
+				exitCode = ecErr.Code()
+			} else {
+				exitCode = 1
+			}
 			break
 		}
 

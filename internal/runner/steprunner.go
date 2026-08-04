@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0n6k4v-Coder/github-action-ci-local-simulator/internal/actions"
 	"github.com/0n6k4v-Coder/github-action-ci-local-simulator/internal/dockerx"
 	"github.com/0n6k4v-Coder/github-action-ci-local-simulator/internal/workflow"
 	"github.com/docker/docker/client"
@@ -37,20 +38,54 @@ func (sr *StepRunner) RunStep(ctx context.Context, step workflow.Step, jobEnv ma
 		}
 		if !shouldRun {
 			return &StepResult{
-				ExitCode:   0,
-				Stdout:     "",
-				Stderr:     "",
-				Status:     StatusSkipped,
-				Outcome:    StatusSkipped,
-				Conclusion: StatusSkipped,
+				ExitCode:        0,
+				Stdout:          "",
+				Stderr:          "",
+				Status:          StatusSkipped,
+				Outcome:         StatusSkipped,
+				Conclusion:      StatusSkipped,
 				ContinueOnError: step.ContinueOnError,
 			}, nil
 		}
 	}
 
-	// Skip if step has 'uses' (actions not supported yet)
+	// Handle action steps (uses)
 	if step.Uses != "" {
-		return nil, fmt.Errorf("actions (uses) not yet supported: %s", step.Uses)
+		ref, err := actions.ParseActionRef(step.Uses)
+		if err != nil {
+			return nil, NewUnsupportedError(fmt.Sprintf("unsupported action: %s", step.Uses))
+		}
+
+		registry := actions.NewRegistry()
+		if !registry.IsSupported(ref) {
+			return nil, NewUnsupportedError(fmt.Sprintf("unsupported action: %s", ref.ActionName()))
+		}
+
+		res, err := registry.Execute(ctx, sr.cli, sr.containerID, workingDir, ref, step.With)
+		if err != nil {
+			return nil, err
+		}
+
+		if res != nil && res.Env != nil {
+			for k, v := range res.Env {
+				jobEnv[k] = v
+			}
+		}
+
+		stdout := ""
+		if res != nil {
+			stdout = res.Stdout
+		}
+
+		return &StepResult{
+			ExitCode:        0,
+			Stdout:          stdout,
+			Stderr:          "",
+			Status:          StatusSuccess,
+			Outcome:         StatusSuccess,
+			Conclusion:      StatusSuccess,
+			ContinueOnError: step.ContinueOnError,
+		}, nil
 	}
 
 	// Skip if step has neither run nor uses
