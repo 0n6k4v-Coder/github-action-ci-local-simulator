@@ -63,7 +63,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 
 	// Ensure image exists
 	if err := dockerx.EnsureImage(ctx, jr.cli, imageName); err != nil {
-		return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("ensure image: %w", err)}, nil
+		return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("ensure image %s: %w\n  Hint: Check image name and run 'docker login' if private", imageName, err)}, nil
 	}
 
 	// Create GITHUB_ENV and GITHUB_PATH files
@@ -129,7 +129,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 			svc := job.Services[sName]
 
 			if err := dockerx.EnsureImage(ctx, jr.cli, svc.Image); err != nil {
-				return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("ensure service image %s: %w", svc.Image, err)}, nil
+				return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("ensure service image %s: %w\n  Hint: Check image name and run 'docker login' if private", svc.Image, err)}, nil
 			}
 
 			svcConfig := dockerx.ServiceConfig{
@@ -151,7 +151,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 			}
 
 			if err := dockerx.WaitForServiceReady(ctx, jr.cli, svcID, primaryPort, 30*time.Second); err != nil {
-				return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("wait for service %s: %w", sName, err)}, nil
+				return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("wait for service %s: %w\n  Hint: Check Docker daemon is running and network connectivity", sName, err)}, nil
 			}
 
 			svcUpper := strings.ReplaceAll(strings.ToUpper(sName), "-", "_")
@@ -340,6 +340,14 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 		if githubPathFile != nil {
 			stepEnv["GITHUB_PATH"] = githubPathFile.Path()
 		}
+
+		// Collect secrets to mask in stdout/stderr
+		var wfSecrets map[string]any
+		if wf != nil {
+			wfSecrets = wf.Secrets
+		}
+		stepSecrets := CollectSecrets(wfSecrets, workflowEnv, jobEnv, stepEnv)
+		stepRunner.SetSecrets(stepSecrets)
 
 		// Run step with timeout
 		result, err := stepRunner.RunStep(ctx, step, stepEnv, shell, stepWorkingDir, githubOutputFile, exprContext, jobTimeout, 0)

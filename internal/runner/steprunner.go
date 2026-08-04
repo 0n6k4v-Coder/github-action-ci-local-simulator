@@ -17,6 +17,7 @@ type StepRunner struct {
 	cli         *client.Client
 	containerID string
 	workingDir  string
+	secrets     []string
 }
 
 // NewStepRunner creates a new step runner for a job container.
@@ -26,6 +27,11 @@ func NewStepRunner(cli *client.Client, containerID, workingDir string) *StepRunn
 		containerID: containerID,
 		workingDir:  workingDir,
 	}
+}
+
+// SetSecrets sets the secret values to mask in step output.
+func (sr *StepRunner) SetSecrets(secrets []string) {
+	sr.secrets = secrets
 }
 
 // RunStep executes a single step and returns the result.
@@ -79,7 +85,7 @@ func (sr *StepRunner) RunStep(ctx context.Context, step workflow.Step, jobEnv ma
 
 		stdout := ""
 		if res != nil {
-			stdout = res.Stdout
+			stdout = MaskSecrets(res.Stdout, sr.secrets)
 		}
 
 		return &StepResult{
@@ -101,7 +107,7 @@ func (sr *StepRunner) RunStep(ctx context.Context, step workflow.Step, jobEnv ma
 	// Interpolate expressions in step.Run
 	runCommand, err := exprContext.Interpolate(step.Run)
 	if err != nil {
-		return nil, fmt.Errorf("interpolate step run: %w", err)
+		return nil, fmt.Errorf("interpolate step run: %w\n  Hint: Check expression syntax", err)
 	}
 
 	// Build the command to execute
@@ -134,21 +140,21 @@ func (sr *StepRunner) RunStep(ctx context.Context, step workflow.Step, jobEnv ma
 			// Check if it's a timeout error
 			if timeoutCtx.Err() == context.DeadlineExceeded {
 				return &StepResult{
-					ExitCode:   5,
-					Stdout:     "",
-					Stderr:     "step timed out",
-					Status:     StatusFailure,
-					Outcome:    StatusFailure,
-					Conclusion: StatusFailure,
+					ExitCode:        5,
+					Stdout:          "",
+					Stderr:          MaskSecrets("step timed out", sr.secrets),
+					Status:          StatusFailure,
+					Outcome:         StatusFailure,
+					Conclusion:      StatusFailure,
 					ContinueOnError: step.ContinueOnError,
 				}, nil
 			}
-			return nil, fmt.Errorf("execute step: %w", err)
+			return nil, fmt.Errorf("execute step: %w\n  Hint: Check Docker container state and network connectivity", err)
 		}
 	} else {
 		result, err = dockerx.ExecCommand(ctx, sr.cli, sr.containerID, workingDir, cmd, jobEnv)
 		if err != nil {
-			return nil, fmt.Errorf("execute step: %w", err)
+			return nil, fmt.Errorf("execute step: %w\n  Hint: Check Docker container state and network connectivity", err)
 		}
 	}
 
@@ -164,13 +170,13 @@ func (sr *StepRunner) RunStep(ctx context.Context, step workflow.Step, jobEnv ma
 	}
 
 	return &StepResult{
-		ExitCode:         result.ExitCode,
-		Stdout:           result.Stdout,
-		Stderr:           result.Stderr,
-		Status:           conclusion, // Use conclusion as the status
-		Outcome:          outcome,
-		Conclusion:       conclusion,
-		ContinueOnError:  step.ContinueOnError,
+		ExitCode:        result.ExitCode,
+		Stdout:          MaskSecrets(result.Stdout, sr.secrets),
+		Stderr:          MaskSecrets(result.Stderr, sr.secrets),
+		Status:          conclusion, // Use conclusion as the status
+		Outcome:         outcome,
+		Conclusion:      conclusion,
+		ContinueOnError: step.ContinueOnError,
 	}, nil
 }
 

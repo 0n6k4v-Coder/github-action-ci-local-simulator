@@ -5,6 +5,7 @@ type Workflow struct {
 	Name     string         `yaml:"name"`
 	On       interface{}    `yaml:"on"`
 	Env      map[string]any `yaml:"env"`
+	Secrets  map[string]any `yaml:"secrets"`
 	Jobs     map[string]Job `yaml:"jobs"`
 	Defaults *Defaults      `yaml:"defaults"`
 }

@@ -79,7 +79,7 @@ func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths
 	// Create Docker client
 	cli, err := dockerx.NewClient(ctx)
 	if err != nil {
-		return fmt.Errorf("create docker client: %w", err)
+		return fmt.Errorf("create docker client: %w\n  Hint: Check Docker daemon is running and network connectivity", err)
 	}
 	defer cli.Close()
 
