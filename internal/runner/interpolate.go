@@ -17,6 +17,7 @@ type ExpressionContext struct {
 	stepResults   []*StepResult
 	jobStatus     JobStatus
 	cancelled     bool
+	needs         map[string]JobNeedsData
 }
 
 // JobStatus represents the current job execution status.
@@ -39,6 +40,11 @@ func NewExpressionContext(
 		stepOutputs: stepOutputs,
 		jobStatus:   JobStatus{},
 	}
+}
+
+// SetNeedsContext sets the needs context for expression evaluation.
+func (ec *ExpressionContext) SetNeedsContext(needs map[string]JobNeedsData) {
+	ec.needs = needs
 }
 
 // SetMatrix sets the matrix context for expression evaluation.
@@ -78,7 +84,7 @@ func (ec *ExpressionContext) SetCurrentStepID(stepID string) {
 }
 
 // Interpolate interpolates expressions in a string.
-// Supports: ${{ env.KEY }}, ${{ github.KEY }}, ${{ runner.KEY }}, ${{ steps.STEP_ID.outputs.KEY }}, ${{ matrix.KEY }}
+// Supports: ${{ env.KEY }}, ${{ github.KEY }}, ${{ runner.KEY }}, ${{ steps.STEP_ID.outputs.KEY }}, ${{ matrix.KEY }}, ${{ needs.JOB_ID.result }}, ${{ needs.JOB_ID.outputs.KEY }}
 func (ec *ExpressionContext) Interpolate(input string) (string, error) {
 	if input == "" {
 		return input, nil
@@ -192,6 +198,41 @@ func (ec *ExpressionContext) evaluateExpression(expr string) (string, error) {
 		}
 		return "", nil
 
+	case "needs":
+		if len(parts) < 3 {
+			return "", fmt.Errorf("invalid needs expression: %s", expr)
+		}
+		jobID := parts[1]
+		data, ok := ec.needs[jobID]
+
+		if parts[2] == "result" {
+			if len(parts) != 3 {
+				return "", fmt.Errorf("invalid needs.result expression: %s", expr)
+			}
+			if ok {
+				return data.Result, nil
+			}
+			return "skipped", nil
+		}
+
+		if parts[2] == "outputs" {
+			if len(parts) != 4 {
+				return "", fmt.Errorf("invalid needs.outputs expression: %s", expr)
+			}
+			key := parts[3]
+			if ok && data.IsMatrix {
+				return "", NewUnsupportedError(fmt.Sprintf("needs.outputs from matrix job '%s' is not supported yet", jobID))
+			}
+			if ok && data.Outputs != nil {
+				if val, exists := data.Outputs[key]; exists {
+					return val, nil
+				}
+			}
+			return "", nil
+		}
+
+		return "", fmt.Errorf("unsupported needs field: %s", parts[2])
+
 	default:
 		return "", fmt.Errorf("unsupported context: %s", context)
 	}
@@ -217,17 +258,29 @@ func (ec *ExpressionContext) evaluateFunction(expr string) (string, error) {
 }
 
 func (ec *ExpressionContext) evalSuccess() bool {
-	// success() is true when no previous step has conclusion failure or cancelled
+	if len(ec.needs) > 0 {
+		for _, data := range ec.needs {
+			if data.Result != "success" {
+				return false
+			}
+		}
+		return true
+	}
 	return !ec.jobStatus.hasFailure && !ec.jobStatus.hasCancelled
 }
 
 func (ec *ExpressionContext) evalFailure() bool {
-	// failure() is true when any previous step has conclusion failure
-	// Note: continue-on-error with failure -> conclusion success, so doesn't count
+	if len(ec.needs) > 0 {
+		for _, data := range ec.needs {
+			if data.Result == "failure" {
+				return true
+			}
+		}
+		return false
+	}
 	return ec.jobStatus.hasFailure
 }
 
 func (ec *ExpressionContext) evalCancelled() bool {
-	// cancelled() is true if the current run/job was cancelled
 	return ec.cancelled
 }

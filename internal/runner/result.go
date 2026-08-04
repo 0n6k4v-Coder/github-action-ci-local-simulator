@@ -36,12 +36,36 @@ type JobResult struct {
 	ExitCode int
 	Error    error
 	Status   Status
+	Outputs  map[string]string
 }
 
 // WorkflowResult represents the result of executing a workflow.
 type WorkflowResult struct {
 	Jobs     map[string]*JobResult
+	JobOrder []string
 	ExitCode int
 	Error    error
 	Status   Status
+}
+
+// UnsupportedError represents an error for unsupported features with exit code 3.
+type UnsupportedError struct {
+	Message  string
+	ExitCode int
+}
+
+func (e *UnsupportedError) Error() string {
+	return e.Message
+}
+
+func (e *UnsupportedError) Code() int {
+	return e.ExitCode
+}
+
+// NewUnsupportedError creates a new UnsupportedError with exit code 3.
+func NewUnsupportedError(msg string) *UnsupportedError {
+	return &UnsupportedError{
+		Message:  msg,
+		ExitCode: 3,
+	}
 }

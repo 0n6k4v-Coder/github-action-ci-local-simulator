@@ -1,0 +1,16 @@
+name: needs-always
+
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 1
+
+  report:
+    runs-on: ubuntu-latest
+    needs: build
+    if: always()
+    steps:
+      - run: echo "build result is ${{ needs.build.result }}"

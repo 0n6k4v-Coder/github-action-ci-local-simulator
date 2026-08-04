@@ -27,7 +27,7 @@ func NewJobRunner(cli *client.Client) *JobRunner {
 }
 
 // RunJob executes a job in a Docker container.
-func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string, workflowEnv map[string]string, workflowDefaults *workflow.Defaults, wf *workflow.Workflow, workspacePath string) (*JobResult, error) {
+func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string, workflowEnv map[string]string, workflowDefaults *workflow.Defaults, wf *workflow.Workflow, workspacePath string, needsCtx map[string]JobNeedsData) (*JobResult, error) {
 	// Generate job instance ID
 	jobInstanceID := fmt.Sprintf("%s-%s", jobID, generateShortID())
 	job.SetInstanceID(jobInstanceID)
@@ -38,6 +38,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 		githubContext := buildGitHubContext(jobID, jobInstanceID)
 		runnerContext := buildRunnerContext()
 		exprContext := NewExpressionContext(workflowEnv, githubContext, runnerContext, NewStepOutputs())
+		exprContext.SetNeedsContext(needsCtx)
 		if job.GetMatrixContext() != nil {
 			exprContext.SetMatrix(job.GetMatrixContext())
 		}
@@ -190,6 +191,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 
 	// Create expression context with matrix support
 	exprContext := NewExpressionContext(jobEnv, githubContext, runnerContext, stepOutputs)
+	exprContext.SetNeedsContext(needsCtx)
 	if job.GetMatrixContext() != nil {
 		exprContext.SetMatrix(job.GetMatrixContext())
 	}
@@ -444,8 +446,19 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 	if firstError != nil || exitCode != 0 {
 		jobStatus = StatusFailure
 	}
-	if exitCode == 5 {
-		jobStatus = StatusFailure
+	// Resolve job outputs if defined
+	resolvedJobOutputs := make(map[string]string)
+	if len(job.Outputs) > 0 {
+		for name, expr := range job.Outputs {
+			val, err := exprContext.Interpolate(expr)
+			if err != nil {
+				if firstError == nil {
+					firstError = fmt.Errorf("resolve job output %q: %w", name, err)
+				}
+			} else {
+				resolvedJobOutputs[name] = val
+			}
+		}
 	}
 
 	// Cleanup container
@@ -460,6 +473,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 		ExitCode: exitCode,
 		Error:    firstError,
 		Status:   jobStatus,
+		Outputs:  resolvedJobOutputs,
 	}, nil
 }
 

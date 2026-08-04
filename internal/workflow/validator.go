@@ -2,14 +2,15 @@ package workflow
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
 // ValidationError represents a validation error with location info.
 type ValidationError struct {
-	JobID  string
-	Step   int
-	Field  string
+	JobID   string
+	Step    int
+	Field   string
 	Message string
 }
 
@@ -42,6 +43,10 @@ func Validate(wf *Workflow) error {
 		if err := validateJob(id, &job); err != nil {
 			return err
 		}
+	}
+
+	if err := validateNeeds(wf); err != nil {
+		return err
 	}
 
 	return nil
@@ -386,4 +391,99 @@ func GenerateDryRunPlanSet(workflows []*Workflow, paths []string) *DryRunPlanSet
 	}
 
 	return planSet
+}
+
+func validateNeeds(wf *Workflow) error {
+	if wf == nil || len(wf.Jobs) == 0 {
+		return nil
+	}
+
+	jobIDs := make([]string, 0, len(wf.Jobs))
+	for id := range wf.Jobs {
+		jobIDs = append(jobIDs, id)
+	}
+	sort.Strings(jobIDs)
+
+	for _, jobID := range jobIDs {
+		job := wf.Jobs[jobID]
+		for _, needID := range job.GetNeedsList() {
+			if _, exists := wf.Jobs[needID]; !exists {
+				return NewValidationErrorWithCode(
+					jobID,
+					fmt.Sprintf("job '%s' depends on unknown job '%s'", jobID, needID),
+					2,
+				)
+			}
+		}
+	}
+
+	if cycle := findNeedsCycle(wf); cycle != "" {
+		return NewValidationErrorWithCode(
+			"",
+			fmt.Sprintf("dependency cycle detected: %s", cycle),
+			2,
+		)
+	}
+
+	return nil
+}
+
+func findNeedsCycle(wf *Workflow) string {
+	jobIDs := make([]string, 0, len(wf.Jobs))
+	for id := range wf.Jobs {
+		jobIDs = append(jobIDs, id)
+	}
+	sort.Strings(jobIDs)
+
+	visited := make(map[string]bool)
+	onPath := make(map[string]bool)
+	var path []string
+	var cycleStr string
+
+	var dfs func(u string) bool
+	dfs = func(u string) bool {
+		visited[u] = true
+		onPath[u] = true
+		path = append(path, u)
+
+		deps := wf.Jobs[u].GetNeedsList()
+		sort.Strings(deps)
+
+		for _, v := range deps {
+			if onPath[v] {
+				cycleStart := -1
+				for i, node := range path {
+					if node == v {
+						cycleStart = i
+						break
+					}
+				}
+				if cycleStart != -1 {
+					cycleNodes := append([]string{}, path[cycleStart:]...)
+					cycleNodes = append(cycleNodes, v)
+					cycleStr = strings.Join(cycleNodes, " -> ")
+					return true
+				}
+			}
+			if !visited[v] {
+				if dfs(v) {
+					return true
+				}
+			}
+		}
+
+		path = path[:len(path)-1]
+		onPath[u] = false
+		return false
+	}
+
+	for _, id := range jobIDs {
+		if !visited[id] {
+			if dfs(id) {
+				return cycleStr
+			}
+		}
+	}
+
+	return ""
 }

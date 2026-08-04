@@ -16,9 +16,10 @@ func newRunCmd() *cobra.Command {
 	flags := &RunFlags{}
 
 	cmd := &cobra.Command{
-		Use:   "run",
-		Short: "Run GitHub Actions workflows locally",
-		Long:  "Run GitHub Actions workflows locally using Docker.",
+		Use:          "run",
+		Short:        "Run GitHub Actions workflows locally",
+		Long:         "Run GitHub Actions workflows locally using Docker.",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Use default workflow directory if not specified
 			workflowPath := flags.Workflow
@@ -82,8 +83,9 @@ func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths
 	}
 	defer cli.Close()
 
-	// Create job runner
+	// Create job runner and workflow runner
 	jobRunner := runner.NewJobRunner(cli)
+	workflowRunner := runner.NewWorkflowRunner(jobRunner)
 
 	// Process each workflow
 	for i, wf := range workflows {
@@ -98,43 +100,71 @@ func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths
 		// Expand matrix jobs
 		expandedWf, err := workflow.ExpandWorkflowJobs(wf)
 		if err != nil {
+			if verr, ok := err.(*workflow.ValidationErrorWithCode); ok {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", verr)
+				os.Exit(verr.ExitCode)
+			}
 			return fmt.Errorf("expand matrix jobs: %w", err)
 		}
 
-		// Run each job in the workflow
-		for jobID, job := range expandedWf.Jobs {
-			fmt.Printf("  Job: %s\n", jobID)
-
-			// Determine workspace path - use the directory containing the workflow file
-			var jobWorkspacePath string
-			if i < len(paths) {
-				info, err := os.Stat(paths[i])
-				if err != nil {
-					return fmt.Errorf("stat workflow path: %w", err)
-				}
-				if info.IsDir() {
-					// If path is a directory, use it directly
-					jobWorkspacePath = paths[i]
-				} else {
-					// If path is a file, use its directory
-					jobWorkspacePath = filepath.Dir(paths[i])
-				}
+		// Determine workspace path
+		var jobWorkspacePath string
+		if i < len(paths) {
+			info, err := os.Stat(paths[i])
+			if err != nil {
+				return fmt.Errorf("stat workflow path: %w", err)
+			}
+			if info.IsDir() {
+				jobWorkspacePath = paths[i]
 			} else {
-				jobWorkspacePath = "."
+				jobWorkspacePath = filepath.Dir(paths[i])
 			}
-			// Make it absolute
-			jobWorkspacePath, err = filepath.Abs(jobWorkspacePath)
-			if err != nil {
-				return fmt.Errorf("resolve workspace path: %w", err)
+		} else {
+			jobWorkspacePath = "."
+		}
+		jobWorkspacePath, err = filepath.Abs(jobWorkspacePath)
+		if err != nil {
+			return fmt.Errorf("resolve workspace path: %w", err)
+		}
+
+		result, err := workflowRunner.RunWorkflow(ctx, wf, expandedWf, jobWorkspacePath, workflowEnv)
+		if err != nil {
+			if verr, ok := err.(*workflow.ValidationErrorWithCode); ok {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", verr)
+				os.Exit(verr.ExitCode)
+			}
+			if uerr, ok := err.(*runner.UnsupportedError); ok {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", uerr)
+				os.Exit(uerr.ExitCode)
+			}
+			if ecErr, ok := err.(interface{ Code() int }); ok {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(ecErr.Code())
+			}
+			return fmt.Errorf("run workflow %s: %w", wf.Name, err)
+		}
+
+		// Print job results in execution order
+		jobIDs := result.JobOrder
+		if len(jobIDs) == 0 {
+			for id := range result.Jobs {
+				jobIDs = append(jobIDs, id)
+			}
+		}
+
+		for _, jobID := range jobIDs {
+			jobRes, ok := result.Jobs[jobID]
+			if !ok || jobRes == nil {
+				continue
 			}
 
-			result, err := jobRunner.RunJob(ctx, job, jobID, workflowEnv, wf.Defaults, wf, jobWorkspacePath)
-			if err != nil {
-				return fmt.Errorf("run job %s: %w", jobID, err)
+			if jobRes.Status == runner.StatusSkipped {
+				fmt.Printf("  Job %s skipped\n", jobID)
+				continue
 			}
 
-			// Print step outputs
-			for j, stepResult := range result.Steps {
+			fmt.Printf("  Job: %s\n", jobID)
+			for j, stepResult := range jobRes.Steps {
 				if stepResult.Stdout != "" {
 					fmt.Printf("    Step %d stdout:\n%s", j+1, stepResult.Stdout)
 				}
@@ -143,16 +173,19 @@ func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths
 				}
 			}
 
-			if result.ExitCode != 0 {
-				if result.Error != nil {
-					fmt.Printf("  Job %s failed: %v\n", jobID, result.Error)
+			if jobRes.ExitCode != 0 {
+				if jobRes.Error != nil {
+					fmt.Printf("  Job %s failed: %v\n", jobID, jobRes.Error)
 				} else {
-					fmt.Printf("  Job %s failed with exit code %d\n", jobID, result.ExitCode)
+					fmt.Printf("  Job %s failed with exit code %d\n", jobID, jobRes.ExitCode)
 				}
-				return fmt.Errorf("job %s failed with exit code %d", jobID, result.ExitCode)
+			} else {
+				fmt.Printf("  Job %s completed successfully\n", jobID)
 			}
+		}
 
-			fmt.Printf("  Job %s completed successfully\n", jobID)
+		if result.ExitCode != 0 {
+			return fmt.Errorf("workflow %s failed with exit code %d", wf.Name, result.ExitCode)
 		}
 	}
 

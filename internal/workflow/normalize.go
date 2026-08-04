@@ -95,7 +95,7 @@ func (j *Job) GetRunsOnAsString() string {
 }
 
 // GetNeedsAsString returns the needs as a comma-separated string for display.
-func (j *Job) GetNeedsAsString() string {
+func (j Job) GetNeedsAsString() string {
 	if j.Needs == nil {
 		return ""
 	}
@@ -106,6 +106,32 @@ func (j *Job) GetNeedsAsString() string {
 		return v
 	default:
 		return fmt.Sprintf("%v", v)
+	}
+}
+
+// GetNeedsList returns the needs as a slice of strings.
+func (j Job) GetNeedsList() []string {
+	if j.Needs == nil {
+		return nil
+	}
+	switch v := j.Needs.(type) {
+	case []string:
+		return v
+	case string:
+		if v == "" {
+			return nil
+		}
+		return []string{v}
+	case []interface{}:
+		var result []string
+		for _, item := range v {
+			if s, ok := item.(string); ok && s != "" {
+				result = append(result, s)
+			}
+		}
+		return result
+	default:
+		return nil
 	}
 }
 
