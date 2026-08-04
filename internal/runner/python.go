@@ -78,7 +78,7 @@ func ensurePythonInstalled(ctx context.Context, cli *client.Client, containerID 
 	// Install python3 + pip + venv
 	installCmd := []string{
 		"bash", "-c",
-		"apt-get update -qq && apt-get install -y -qq python3 python3-pip python3-venv > /dev/null 2>&1",
+		"apt-get update -qq && apt-get install -y -qq python3 python3-pip python3-venv > /dev/null 2>&1 && rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED",
 	}
 	result, err := execCommand(ctx, cli, containerID, "/", installCmd, nil)
 	if err != nil {
