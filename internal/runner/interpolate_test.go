@@ -2,6 +2,7 @@ package runner
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -218,17 +219,103 @@ func TestInterpolateExpressionComparisons(t *testing.T) {
 	}
 }
 
+func TestInterpolateLogicalOperators(t *testing.T) {
+	ec := NewExpressionContext(nil, nil, nil, NewStepOutputs())
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+		wantErr  bool
+	}{
+		{
+			name:     "&& with both true",
+			input:    "${{ 'a' == 'a' && 'b' == 'b' }}",
+			expected: "true",
+		},
+		{
+			name:     "&& with left false (short-circuit)",
+			input:    "${{ false && hashFiles('**/go.mod') }}",
+			expected: "false",
+		},
+		{
+			name:     "&& with right false",
+			input:    "${{ true && false }}",
+			expected: "false",
+		},
+		{
+			name:     "|| with both false",
+			input:    "${{ 'a' == 'b' || 'c' == 'd' }}",
+			expected: "false",
+		},
+		{
+			name:     "|| with left true (short-circuit)",
+			input:    "${{ true || hashFiles('**/go.mod') }}",
+			expected: "true",
+		},
+		{
+			name:     "|| with right true",
+			input:    "${{ false || true }}",
+			expected: "true",
+		},
+		{
+			name:     "! with true",
+			input:    "${{ !success() }}",
+			expected: "false",
+		},
+		{
+			name:     "! with false",
+			input:    "${{ !failure() }}",
+			expected: "true",
+		},
+		{
+			name:     "Precedence A || B && C",
+			input:    "${{ false || true && false }}",
+			expected: "false",
+		},
+		{
+			name:     "Precedence !A && B",
+			input:    "${{ !false && true }}",
+			expected: "true",
+		},
+		{
+			name:     "Combined with context and functions",
+			input:    "${{ github.ref == 'refs/heads/main' && success() }}",
+			expected: "true",
+		},
+	}
+
+	githubCtx := map[string]string{
+		"ref": "refs/heads/main",
+	}
+	ecWithGithub := NewExpressionContext(nil, githubCtx, nil, NewStepOutputs())
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctxToUse := ec
+			if strings.Contains(tt.input, "github.ref") {
+				ctxToUse = ecWithGithub
+			}
+			got, err := ctxToUse.Interpolate(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Interpolate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if got != tt.expected {
+				t.Errorf("Interpolate() got = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestInterpolateUnsupportedOperators(t *testing.T) {
 	ec := NewExpressionContext(nil, nil, nil, NewStepOutputs())
 
 	unsupportedInputs := []string{
 		"${{ github.ref < 'refs/heads/main' }}",
-		"${{ github.ref && true }}",
-		"${{ github.ref || false }}",
-		"${{ !success() }}",
 		"${{ 1 <= 2 }}",
 		"${{ 1 >= 2 }}",
 		"${{ 1 > 2 }}",
+		"${{ github.ref < 'refs/heads/main' && success() }}",
 	}
 
 	for _, input := range unsupportedInputs {
@@ -247,4 +334,5 @@ func TestInterpolateUnsupportedOperators(t *testing.T) {
 		})
 	}
 }
+
 

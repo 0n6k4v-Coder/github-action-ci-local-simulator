@@ -250,7 +250,7 @@ func TestExpressionContextUnsupported(t *testing.T) {
 
 	// Test unsupported expressions
 	unsupported := []string{
-		"${{ env.VAR && true }}",
+		"${{ env.VAR <= 'val' }}",
 		"${{ github.something() }}",
 		"${{ runner.os < 'Linux' }}",
 	}

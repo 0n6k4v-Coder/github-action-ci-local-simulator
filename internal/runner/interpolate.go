@@ -128,61 +128,73 @@ func (ec *ExpressionContext) InterpolateMap(input map[string]string) (map[string
 	return result, nil
 }
 
-// evaluateExpression evaluates a single expression.
-func (ec *ExpressionContext) evaluateExpression(expr string) (string, error) {
-	expr = strings.TrimSpace(expr)
-	if expr == "" {
-		return "", nil
-	}
-
-	// Parse expression for operators (handling quotes and nested parens)
-	op, left, right, err := parseExpressionOperators(expr)
-	if err != nil {
-		return "", err
-	}
-
-	if op != "" {
-		// Evaluate comparison
-		leftVal, err := ec.evaluateOperand(left)
-		if err != nil {
-			return "", err
-		}
-		rightVal, err := ec.evaluateOperand(right)
-		if err != nil {
-			return "", err
-		}
-
-		switch op {
-		case "==":
-			if leftVal == rightVal {
-				return "true", nil
-			}
-			return "false", nil
-		case "!=":
-			if leftVal != rightVal {
-				return "true", nil
-			}
-			return "false", nil
-		default:
-			return "", NewUnsupportedError(fmt.Sprintf("unsupported expression operator: %s", op))
-		}
-	}
-
-	// Single expression without comparison operator
-	return ec.evaluateOperand(expr)
+func isTrue(val string) bool {
+	v := strings.ToLower(strings.TrimSpace(val))
+	return v != "false" && v != "" && v != "0"
 }
 
-// parseExpressionOperators parses expr looking for top-level comparison operators (==, !=)
-// and checks for unsupported operators (&&, ||, <=, >=, <, >, !).
-func parseExpressionOperators(expr string) (op string, left string, right string, err error) {
+func isEnclosedInParens(expr string) bool {
+	expr = strings.TrimSpace(expr)
+	if len(expr) < 2 || !strings.HasPrefix(expr, "(") || !strings.HasSuffix(expr, ")") {
+		return false
+	}
+
+	var inSingleQuote, inDoubleQuote, escaped bool
+	parenDepth := 0
+	n := len(expr)
+
+	for i := 0; i < n; i++ {
+		ch := expr[i]
+
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		if ch == '\\' && (inSingleQuote || inDoubleQuote) {
+			escaped = true
+			continue
+		}
+
+		if ch == '\'' && !inDoubleQuote {
+			inSingleQuote = !inSingleQuote
+			continue
+		}
+
+		if ch == '"' && !inSingleQuote {
+			inDoubleQuote = !inDoubleQuote
+			continue
+		}
+
+		if inSingleQuote || inDoubleQuote {
+			continue
+		}
+
+		if ch == '(' {
+			parenDepth++
+		} else if ch == ')' {
+			parenDepth--
+			if parenDepth == 0 && i < n-1 {
+				return false
+			}
+		}
+	}
+
+	return parenDepth == 0
+}
+
+type opMatch struct {
+	op    string
+	index int
+}
+
+func findTopLevelOps(expr string) ([]opMatch, error) {
 	var (
 		inSingleQuote bool
 		inDoubleQuote bool
 		escaped       bool
 		parenDepth    int
-		opIndex       = -1
-		opLen         = 0
-		foundOp       string
+		matches       []opMatch
 	)
 
 	n := len(expr)
@@ -213,11 +225,11 @@ func parseExpressionOperators(expr string) (op string, left string, right string
 			continue
 		}
 
-		// Track parenthesis depth outside quotes
 		if ch == '(' {
 			parenDepth++
 			continue
 		}
+
 		if ch == ')' {
 			if parenDepth > 0 {
 				parenDepth--
@@ -225,60 +237,171 @@ func parseExpressionOperators(expr string) (op string, left string, right string
 			continue
 		}
 
-		// Check multi-character unsupported operators
-		if i+1 < n {
-			two := expr[i : i+2]
-			if two == "&&" {
-				return "", "", "", NewUnsupportedError("unsupported expression operator: &&")
-			}
-			if two == "||" {
-				return "", "", "", NewUnsupportedError("unsupported expression operator: ||")
-			}
-			if two == "<=" {
-				return "", "", "", NewUnsupportedError("unsupported expression operator: <=")
-			}
-			if two == ">=" {
-				return "", "", "", NewUnsupportedError("unsupported expression operator: >=")
-			}
-		}
-
-		// Check single-character unsupported operators
-		if ch == '<' {
-			return "", "", "", NewUnsupportedError("unsupported expression operator: <")
-		}
-		if ch == '>' {
-			return "", "", "", NewUnsupportedError("unsupported expression operator: >")
-		}
-		if ch == '!' && (i+1 >= n || expr[i+1] != '=') {
-			return "", "", "", NewUnsupportedError("unsupported expression operator: !")
-		}
-
-		// Check for comparison operators at top level (parenDepth == 0)
-		if parenDepth == 0 && i+1 < n {
-			two := expr[i : i+2]
-			if two == "==" || two == "!=" {
-				if foundOp != "" {
-					return "", "", "", NewUnsupportedError("nested boolean logic and multiple operators are not supported")
+		if parenDepth == 0 {
+			// Check 2-character operators
+			if i+1 < n {
+				two := expr[i : i+2]
+				switch two {
+				case "&&", "||", "==", "!=", "<=", ">=":
+					matches = append(matches, opMatch{op: two, index: i})
+					i++ // skip next char
+					continue
 				}
-				foundOp = two
-				opIndex = i
-				opLen = 2
-				i++ // skip next char since we consumed 2 chars
+			}
+
+			// Check 1-character operators
+			switch ch {
+			case '<', '>':
+				matches = append(matches, opMatch{op: string(ch), index: i})
+			case '!':
+				if i+1 >= n || expr[i+1] != '=' {
+					matches = append(matches, opMatch{op: "!", index: i})
+				}
 			}
 		}
 	}
 
 	if inSingleQuote || inDoubleQuote {
-		return "", "", "", fmt.Errorf("unterminated string literal in expression: %s", expr)
+		return nil, fmt.Errorf("unterminated string literal in expression: %s", expr)
 	}
 
-	if foundOp != "" {
-		left = strings.TrimSpace(expr[:opIndex])
-		right = strings.TrimSpace(expr[opIndex+opLen:])
-		return foundOp, left, right, nil
+	return matches, nil
+}
+
+// evaluateExpression evaluates a single expression.
+func (ec *ExpressionContext) evaluateExpression(expr string) (string, error) {
+	expr = strings.TrimSpace(expr)
+	if expr == "" {
+		return "", nil
 	}
 
-	return "", "", "", nil
+	for isEnclosedInParens(expr) {
+		expr = strings.TrimSpace(expr[1 : len(expr)-1])
+	}
+	if expr == "" {
+		return "", nil
+	}
+
+	matches, err := findTopLevelOps(expr)
+	if err != nil {
+		return "", err
+	}
+
+	// Level 1: Logical OR (||)
+	for _, m := range matches {
+		if m.op == "||" {
+			left := strings.TrimSpace(expr[:m.index])
+			right := strings.TrimSpace(expr[m.index+2:])
+
+			leftVal, err := ec.evaluateExpression(left)
+			if err != nil {
+				return "", err
+			}
+			if isTrue(leftVal) {
+				return "true", nil
+			}
+
+			rightVal, err := ec.evaluateExpression(right)
+			if err != nil {
+				return "", err
+			}
+			if isTrue(rightVal) {
+				return "true", nil
+			}
+			return "false", nil
+		}
+	}
+
+	// Level 2: Logical AND (&&)
+	for _, m := range matches {
+		if m.op == "&&" {
+			left := strings.TrimSpace(expr[:m.index])
+			right := strings.TrimSpace(expr[m.index+2:])
+
+			leftVal, err := ec.evaluateExpression(left)
+			if err != nil {
+				return "", err
+			}
+			if !isTrue(leftVal) {
+				return "false", nil
+			}
+
+			rightVal, err := ec.evaluateExpression(right)
+			if err != nil {
+				return "", err
+			}
+			if !isTrue(rightVal) {
+				return "false", nil
+			}
+			return "true", nil
+		}
+	}
+
+	// Level 3: Comparison operators (==, !=, <, >, <=, >=)
+	var compMatches []opMatch
+	for _, m := range matches {
+		switch m.op {
+		case "==", "!=", "<", ">", "<=", ">=":
+			compMatches = append(compMatches, m)
+		}
+	}
+
+	if len(compMatches) > 0 {
+		if len(compMatches) > 1 {
+			return "", NewUnsupportedError("nested boolean logic and multiple operators are not supported")
+		}
+		m := compMatches[0]
+		switch m.op {
+		case "<", ">", "<=", ">=":
+			return "", NewUnsupportedError(fmt.Sprintf("unsupported expression operator: %s", m.op))
+		case "==", "!=":
+			left := strings.TrimSpace(expr[:m.index])
+			right := strings.TrimSpace(expr[m.index+len(m.op):])
+
+			leftVal, err := ec.evaluateExpression(left)
+			if err != nil {
+				return "", err
+			}
+			rightVal, err := ec.evaluateExpression(right)
+			if err != nil {
+				return "", err
+			}
+
+			if m.op == "==" {
+				if leftVal == rightVal {
+					return "true", nil
+				}
+				return "false", nil
+			} else {
+				if leftVal != rightVal {
+					return "true", nil
+				}
+				return "false", nil
+			}
+		}
+	}
+
+	// Level 4: Logical NOT (!)
+	for _, m := range matches {
+		if m.op == "!" {
+			if m.index == 0 {
+				target := strings.TrimSpace(expr[1:])
+				val, err := ec.evaluateExpression(target)
+				if err != nil {
+					return "", err
+				}
+				if isTrue(val) {
+					return "false", nil
+				}
+				return "true", nil
+			} else {
+				return "", NewUnsupportedError("unsupported expression operator: !")
+			}
+		}
+	}
+
+	// Level 5: Primary expression / operand
+	return ec.evaluateOperand(expr)
 }
 
 // evaluateOperand evaluates a single operand token (string literal, number, bool, function call, or context path).

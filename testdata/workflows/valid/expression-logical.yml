@@ -1,0 +1,28 @@
+name: expression-logical
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set outputs
+        id: sample
+        run: |
+          echo "ref=refs/heads/main" >> "$GITHUB_OUTPUT"
+
+      - name: AND check
+        if: steps.sample.outputs.ref == 'refs/heads/main' && success()
+        run: echo and-ok
+
+      - name: OR check
+        if: failure() || success()
+        run: echo or-ok
+
+      - name: NOT check
+        if: !failure()
+        run: echo not-ok
+
+      - name: Precedence check
+        if: success() || failure() && !cancelled()
+        run: echo precedence-ok
