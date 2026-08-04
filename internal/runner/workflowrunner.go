@@ -3,13 +3,19 @@ package runner
 import (
 	"context"
 	"fmt"
+	"sort"
+	"sync"
 
 	"github.com/0n6k4v-Coder/github-action-ci-local-simulator/internal/workflow"
 )
 
+type jobRunnerInterface interface {
+	RunJob(ctx context.Context, job workflow.Job, jobID string, workflowEnv map[string]string, workflowDefaults *workflow.Defaults, wf *workflow.Workflow, workspacePath string, needsCtx map[string]JobNeedsData) (*JobResult, error)
+}
+
 // WorkflowRunner handles execution of workflows including job dependency ordering.
 type WorkflowRunner struct {
-	jobRunner *JobRunner
+	jobRunner jobRunnerInterface
 }
 
 // NewWorkflowRunner creates a new WorkflowRunner.
@@ -19,7 +25,14 @@ func NewWorkflowRunner(jobRunner *JobRunner) *WorkflowRunner {
 	}
 }
 
-// RunWorkflow runs a workflow in dependency order.
+// newWorkflowRunnerWithInterface creates a WorkflowRunner with a custom jobRunner interface (used for testing).
+func newWorkflowRunnerWithInterface(jobRunner jobRunnerInterface) *WorkflowRunner {
+	return &WorkflowRunner{
+		jobRunner: jobRunner,
+	}
+}
+
+// RunWorkflow runs a workflow with parallel job execution for unblocked jobs.
 func (wr *WorkflowRunner) RunWorkflow(
 	ctx context.Context,
 	wf *workflow.Workflow,
@@ -32,13 +45,16 @@ func (wr *WorkflowRunner) RunWorkflow(
 		return nil, err
 	}
 
-	// 2. Sort job IDs topologically
-	sortedJobIDs, err := TopologicalSort(wf)
-	if err != nil {
-		return nil, err
+	if wf == nil || len(wf.Jobs) == 0 {
+		return &WorkflowResult{
+			Jobs:     make(map[string]*JobResult),
+			ExitCode: 0,
+			Status:   StatusSuccess,
+		}, nil
 	}
 
-	// Track original job states
+	// 2. Track original job states
+	var mu sync.Mutex
 	jobResults := make(map[string]Status)
 	jobOutputs := make(map[string]map[string]string)
 	matrixJobs := make(map[string]bool)
@@ -51,72 +67,177 @@ func (wr *WorkflowRunner) RunWorkflow(
 		}
 	}
 
+	// Calculate in-degree and dependents map for dependency tracking
+	inDegree := make(map[string]int)
+	dependents := make(map[string][]string)
+
+	for id, job := range wf.Jobs {
+		needs := getJobNeedsList(job)
+		inDegree[id] = len(needs)
+		for _, needID := range needs {
+			dependents[needID] = append(dependents[needID], id)
+		}
+	}
+
 	var jobExecutionOrder []string
 	workflowFailed := false
 
-	// 3. Execute jobs in topological order
-	for _, origJobID := range sortedJobIDs {
-		origJob := wf.Jobs[origJobID]
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-		// Find expanded job instances belonging to origJobID
-		var instanceIDs []string
-		for expID := range expandedWf.Jobs {
-			if expID == origJobID || isMatrixInstance(expID, origJobID) {
-				instanceIDs = append(instanceIDs, expID)
+	var runErr error
+	var errOnce sync.Once
+	var wg sync.WaitGroup
+	wg.Add(len(wf.Jobs))
+
+	var launchJob func(origJobID string)
+	launchJob = func(origJobID string) {
+		go func() {
+			defer wg.Done()
+
+			if ctx.Err() != nil {
+				return
 			}
-		}
 
-		// Build needs context for this job
-		needsCtx := BuildNeedsContext(origJob, jobResults, jobOutputs, matrixJobs)
+			origJob := wf.Jobs[origJobID]
 
-		// Determine if job should run based on dependencies and job-level if
-		shouldRun, skipErr := shouldRunJob(origJob, needsCtx)
-		if skipErr != nil {
-			return nil, skipErr
-		}
-
-		if !shouldRun {
-			jobResults[origJobID] = StatusSkipped
-			for _, instID := range instanceIDs {
-				allJobResults[instID] = &JobResult{
-					JobID:    instID,
-					ExitCode: 0,
-					Status:   StatusSkipped,
+			// Find expanded job instances belonging to origJobID
+			var instanceIDs []string
+			for expID := range expandedWf.Jobs {
+				if expID == origJobID || isMatrixInstance(expID, origJobID) {
+					instanceIDs = append(instanceIDs, expID)
 				}
-				jobExecutionOrder = append(jobExecutionOrder, instID)
 			}
-			continue
-		}
+			sort.Strings(instanceIDs)
 
-		// Run expanded instances sequentially
-		var instanceResults []*JobResult
+			// Build needs context for this job under lock
+			mu.Lock()
+			needsCtx := BuildNeedsContext(origJob, jobResults, jobOutputs, matrixJobs)
+			mu.Unlock()
 
-		for _, instID := range instanceIDs {
-			jobExecutionOrder = append(jobExecutionOrder, instID)
-			expJob := expandedWf.Jobs[instID]
-			res, err := wr.jobRunner.RunJob(ctx, expJob, instID, workflowEnv, wf.Defaults, wf, workspacePath, needsCtx)
-			if err != nil {
-				return nil, fmt.Errorf("run job %s: %w", instID, err)
+			// Determine if job should run based on dependencies and job-level if
+			shouldRun, skipErr := shouldRunJob(origJob, needsCtx)
+			if skipErr != nil {
+				errOnce.Do(func() {
+					runErr = skipErr
+					cancel()
+				})
+				return
 			}
 
-			allJobResults[instID] = res
-			instanceResults = append(instanceResults, res)
-		}
+			if !shouldRun {
+				mu.Lock()
+				jobResults[origJobID] = StatusSkipped
+				for _, instID := range instanceIDs {
+					allJobResults[instID] = &JobResult{
+						JobID:    instID,
+						ExitCode: 0,
+						Status:   StatusSkipped,
+					}
+					jobExecutionOrder = append(jobExecutionOrder, instID)
+				}
+				mu.Unlock()
+			} else {
+				// Run expanded instances concurrently
+				instanceResults := make([]*JobResult, len(instanceIDs))
+				var instWg sync.WaitGroup
+				var instErr error
+				var instErrOnce sync.Once
 
-		// Aggregate result for original job ID
-		aggStatus := AggregateJobResults(instanceResults)
-		jobResults[origJobID] = aggStatus
+				for i, instID := range instanceIDs {
+					instWg.Add(1)
+					go func(idx int, id string) {
+						defer instWg.Done()
 
-		if aggStatus == StatusFailure {
-			workflowFailed = true
-		}
+						if ctx.Err() != nil {
+							return
+						}
 
-		// Store resolved outputs if non-matrix job
-		if !matrixJobs[origJobID] && len(instanceResults) == 1 && instanceResults[0].Status == StatusSuccess {
-			if instanceResults[0].Outputs != nil {
-				jobOutputs[origJobID] = instanceResults[0].Outputs
+						expJob := expandedWf.Jobs[id]
+						res, err := wr.jobRunner.RunJob(ctx, expJob, id, workflowEnv, wf.Defaults, wf, workspacePath, needsCtx)
+						if err != nil {
+							instErrOnce.Do(func() {
+								instErr = fmt.Errorf("run job %s: %w", id, err)
+								cancel()
+							})
+							return
+						}
+
+						mu.Lock()
+						allJobResults[id] = res
+						jobExecutionOrder = append(jobExecutionOrder, id)
+						mu.Unlock()
+
+						instanceResults[idx] = res
+					}(i, instID)
+				}
+				instWg.Wait()
+
+				if instErr != nil {
+					errOnce.Do(func() {
+						runErr = instErr
+					})
+					return
+				}
+
+				// Aggregate result for original job ID
+				aggStatus := AggregateJobResults(instanceResults)
+
+				mu.Lock()
+				jobResults[origJobID] = aggStatus
+				if aggStatus == StatusFailure {
+					workflowFailed = true
+				}
+
+				// Store resolved outputs if non-matrix job and success
+				if !matrixJobs[origJobID] && len(instanceResults) == 1 && instanceResults[0] != nil && instanceResults[0].Status == StatusSuccess {
+					if instanceResults[0].Outputs != nil {
+						jobOutputs[origJobID] = instanceResults[0].Outputs
+					}
+				}
+				mu.Unlock()
 			}
+
+			// Unlock dependent jobs
+			var readyDeps []string
+			mu.Lock()
+			deps := dependents[origJobID]
+			for _, depID := range deps {
+				inDegree[depID]--
+				if inDegree[depID] == 0 {
+					readyDeps = append(readyDeps, depID)
+				}
+			}
+			mu.Unlock()
+
+			for _, depID := range readyDeps {
+				launchJob(depID)
+			}
+		}()
+	}
+
+	// 3. Find and launch all initial jobs with in-degree 0
+	jobIDs := make([]string, 0, len(wf.Jobs))
+	for id := range wf.Jobs {
+		jobIDs = append(jobIDs, id)
+	}
+	sort.Strings(jobIDs)
+
+	var initialJobs []string
+	for _, id := range jobIDs {
+		if inDegree[id] == 0 {
+			initialJobs = append(initialJobs, id)
 		}
+	}
+
+	for _, id := range initialJobs {
+		launchJob(id)
+	}
+
+	wg.Wait()
+
+	if runErr != nil {
+		return nil, runErr
 	}
 
 	finalStatus := StatusSuccess
