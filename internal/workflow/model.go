@@ -16,6 +16,7 @@ type Job struct {
 	Needs           interface{}       `yaml:"needs"`
 	If              string            `yaml:"if"`
 	Env             map[string]any    `yaml:"env"`
+	Services        map[string]Service `yaml:"services"`
 	Steps           []Step            `yaml:"steps"`
 	Strategy        *Strategy         `yaml:"strategy"`
 	Outputs         map[string]string `yaml:"outputs"`
@@ -25,6 +26,14 @@ type Job struct {
 	instanceID      string
 	githubEnvPath   string
 	githubPathPath  string
+}
+
+// Service represents a service container in a job.
+type Service struct {
+	Image   string         `yaml:"image"`
+	Env     map[string]any `yaml:"env"`
+	Ports   []any          `yaml:"ports"`
+	Options string         `yaml:"options"`
 }
 
 // Strategy represents the strategy configuration for a job.

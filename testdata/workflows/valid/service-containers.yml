@@ -1,0 +1,19 @@
+name: service-containers
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+    steps:
+      - name: Verify Redis
+        run: |
+          echo "Redis host: $REDIS_HOST"
+          echo "Redis port: $REDIS_PORT"
+          # Simple check (assuming redis-cli or netcat is available in ubuntu-latest)
+          nc -zv $REDIS_HOST $REDIS_PORT

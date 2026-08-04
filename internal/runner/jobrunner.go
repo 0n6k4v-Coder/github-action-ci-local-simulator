@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -77,21 +78,107 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 	githubContext := buildGitHubContext(jobID, jobInstanceID)
 	runnerContext := buildRunnerContext()
 
+	// Setup tracking variables and defer teardown for containers and network
+	var networkID string
+	var serviceContainerIDs []string
+	var containerID string
+
+	defer func() {
+		if containerID != "" {
+			_ = dockerx.RemoveContainer(ctx, jr.cli, containerID)
+		}
+		for _, svcID := range serviceContainerIDs {
+			_ = dockerx.RemoveContainer(ctx, jr.cli, svcID)
+		}
+		if networkID != "" {
+			_ = dockerx.RemoveNetwork(ctx, jr.cli, networkID)
+		}
+	}()
+
 	// Ensure /tmp/gacils exists on host for bind mount
 	if err := os.MkdirAll("/tmp/gacils", 0755); err != nil {
 		return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("create /tmp/gacils: %w", err)}, nil
 	}
 
+	// Prepare base job environment (workflow > job > github > container)
+	jobEnv := make(map[string]string)
+	for k, v := range workflowEnv {
+		jobEnv[k] = fmt.Sprintf("%v", v)
+	}
+	for k, v := range job.Env {
+		jobEnv[k] = fmt.Sprintf("%v", v)
+	}
+
+	// Setup service containers and custom network if job has services
+	var networkName string
+	if len(job.Services) > 0 {
+		networkName = fmt.Sprintf("gacils-net-%s", jobInstanceID)
+		netID, err := dockerx.CreateNetwork(ctx, jr.cli, networkName)
+		if err != nil {
+			return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("create network: %w", err)}, nil
+		}
+		networkID = netID
+
+		var svcNames []string
+		for sName := range job.Services {
+			svcNames = append(svcNames, sName)
+		}
+		sort.Strings(svcNames)
+
+		for _, sName := range svcNames {
+			svc := job.Services[sName]
+
+			if err := dockerx.EnsureImage(ctx, jr.cli, svc.Image); err != nil {
+				return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("ensure service image %s: %w", svc.Image, err)}, nil
+			}
+
+			svcConfig := dockerx.ServiceConfig{
+				Name:    sName,
+				Image:   svc.Image,
+				Env:     svc.Env,
+				Ports:   svc.Ports,
+				Options: svc.Options,
+			}
+
+			svcID, primaryPort, err := dockerx.CreateServiceContainer(ctx, jr.cli, networkName, sName, svcConfig)
+			if err != nil {
+				return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("create service %s: %w", sName, err)}, nil
+			}
+			serviceContainerIDs = append(serviceContainerIDs, svcID)
+
+			if err := dockerx.StartContainer(ctx, jr.cli, svcID); err != nil {
+				return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("start service %s: %w", sName, err)}, nil
+			}
+
+			if err := dockerx.WaitForServiceReady(ctx, jr.cli, svcID, primaryPort, 30*time.Second); err != nil {
+				return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("wait for service %s: %w", sName, err)}, nil
+			}
+
+			svcUpper := strings.ReplaceAll(strings.ToUpper(sName), "-", "_")
+			jobEnv[svcUpper+"_HOST"] = sName
+			if primaryPort != "" {
+				jobEnv[svcUpper+"_PORT"] = primaryPort
+			}
+		}
+	}
+
 	// Create container with GitHub and runner context
 	workingDir := "/github/workspace"
-	containerID, err := dockerx.CreateContainer(ctx, jr.cli, imageName, workingDir, githubEnvFile.Path(), githubPathFile.Path(), githubContext, runnerContext)
+	cID, err := dockerx.CreateContainer(ctx, jr.cli, imageName, workingDir, githubEnvFile.Path(), githubPathFile.Path(), githubContext, runnerContext)
 	if err != nil {
 		return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("create container: %w", err)}, nil
+	}
+	containerID = cID
+
+	// Connect main container to custom network if network was created
+	if networkID != "" {
+		if err := dockerx.ConnectNetwork(ctx, jr.cli, networkID, containerID); err != nil {
+			return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("connect main container to network: %w", err)}, nil
+		}
 	}
 
 	// Start container
 	if err := dockerx.StartContainer(ctx, jr.cli, containerID); err != nil {
-		_ = dockerx.RemoveContainer(ctx, jr.cli, containerID)
 		return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("start container: %w", err)}, nil
 	}
 
@@ -170,17 +257,6 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 
 	// Create step runner
 	stepRunner := NewStepRunner(jr.cli, containerID, workingDir)
-
-	// Prepare base job environment (workflow > job > github > container)
-	jobEnv := make(map[string]string)
-	// Workflow env
-	for k, v := range workflowEnv {
-		jobEnv[k] = fmt.Sprintf("%v", v)
-	}
-	// Job env (overrides workflow)
-	for k, v := range job.Env {
-		jobEnv[k] = fmt.Sprintf("%v", v)
-	}
 
 	// Ensure PATH is initialized from container
 	if jobEnv["PATH"] == "" {
@@ -471,12 +547,6 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 				resolvedJobOutputs[name] = val
 			}
 		}
-	}
-
-	// Cleanup container
-	if err := dockerx.RemoveContainer(ctx, jr.cli, containerID); err != nil {
-		// Log but don't fail
-		fmt.Printf("Warning: failed to remove container: %v\n", err)
 	}
 
 	return &JobResult{
