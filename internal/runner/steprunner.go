@@ -61,7 +61,12 @@ func (sr *StepRunner) RunStep(ctx context.Context, step workflow.Step, jobEnv ma
 			return nil, NewUnsupportedError(fmt.Sprintf("unsupported action: %s", ref.ActionName()))
 		}
 
-		res, err := registry.Execute(ctx, sr.cli, sr.containerID, workingDir, ref, step.With)
+		interpolatedWith, err := exprContext.InterpolateWith(step.With)
+		if err != nil {
+			return nil, fmt.Errorf("interpolate action inputs: %w", err)
+		}
+
+		res, err := registry.Execute(ctx, sr.cli, sr.containerID, workingDir, ref, interpolatedWith)
 		if err != nil {
 			return nil, err
 		}

@@ -128,6 +128,28 @@ func (ec *ExpressionContext) InterpolateMap(input map[string]string) (map[string
 	return result, nil
 }
 
+// InterpolateWith interpolates expressions in all values of a map[string]any (e.g. step.With).
+func (ec *ExpressionContext) InterpolateWith(input map[string]any) (map[string]any, error) {
+	if input == nil {
+		return nil, nil
+	}
+	result := make(map[string]any, len(input))
+	for k, v := range input {
+		if strVal, ok := v.(string); ok {
+			interpolated, err := ec.Interpolate(strVal)
+			if err != nil {
+				return nil, fmt.Errorf("interpolate %s: %w", k, err)
+			}
+			result[k] = interpolated
+		} else if v == nil {
+			result[k] = ""
+		} else {
+			result[k] = fmt.Sprintf("%v", v)
+		}
+	}
+	return result, nil
+}
+
 func isTrue(val string) bool {
 	v := strings.ToLower(strings.TrimSpace(val))
 	return v != "false" && v != "" && v != "0"

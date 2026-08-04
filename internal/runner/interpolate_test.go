@@ -335,4 +335,81 @@ func TestInterpolateUnsupportedOperators(t *testing.T) {
 	}
 }
 
+func TestInterpolateWith(t *testing.T) {
+	githubCtx := map[string]string{
+		"repository": "octocat/hello-world",
+		"ref":        "refs/heads/main",
+	}
+	matrixCtx := map[string]any{
+		"python": "3.11",
+	}
+
+	ec := NewExpressionContext(nil, githubCtx, nil, NewStepOutputs())
+	ec.SetMatrix(matrixCtx)
+
+	t.Run("interpolates string expressions", func(t *testing.T) {
+		input := map[string]any{
+			"repository": "${{ github.repository }}",
+			"ref":        "${{ github.ref }}",
+			"python-ver": "${{ matrix.python }}",
+		}
+		got, err := ec.InterpolateWith(input)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got["repository"] != "octocat/hello-world" {
+			t.Errorf("expected octocat/hello-world, got %v", got["repository"])
+		}
+		if got["ref"] != "refs/heads/main" {
+			t.Errorf("expected refs/heads/main, got %v", got["ref"])
+		}
+		if got["python-ver"] != "3.11" {
+			t.Errorf("expected 3.11, got %v", got["python-ver"])
+		}
+	})
+
+	t.Run("handles mixed types", func(t *testing.T) {
+		input := map[string]any{
+			"str":   "${{ github.ref }}",
+			"bool":  true,
+			"num":   42,
+			"float": 3.14,
+		}
+		got, err := ec.InterpolateWith(input)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got["str"] != "refs/heads/main" {
+			t.Errorf("expected refs/heads/main, got %v", got["str"])
+		}
+		if got["bool"] != "true" {
+			t.Errorf("expected 'true', got %v", got["bool"])
+		}
+		if got["num"] != "42" {
+			t.Errorf("expected '42', got %v", got["num"])
+		}
+		if got["float"] != "3.14" {
+			t.Errorf("expected '3.14', got %v", got["float"])
+		}
+	})
+
+	t.Run("propagates error on unsupported expression", func(t *testing.T) {
+		input := map[string]any{
+			"hash": "${{ hashFiles('**/go.sum') }}",
+		}
+		_, err := ec.InterpolateWith(input)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		var uErr *UnsupportedError
+		if !errors.As(err, &uErr) {
+			t.Fatalf("expected UnsupportedError, got %T: %v", err, err)
+		}
+		if uErr.Code() != 3 {
+			t.Errorf("expected exit code 3, got %d", uErr.Code())
+		}
+	})
+}
+
+
 
