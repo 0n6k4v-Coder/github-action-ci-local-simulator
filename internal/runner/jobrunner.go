@@ -255,6 +255,14 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 		}
 	}
 
+	// Auto-install Python if python/pip commands are detected on ubuntu-based images without setup-python
+	if jobHasPythonCommands(job) {
+		if err := ensurePythonInstalled(ctx, jr.cli, containerID, jobHasSetupPython(job), imageName); err != nil {
+			fmt.Printf("  ⚠️ Could not auto-install python: %v\n", err)
+			fmt.Printf("  ⚠️ Workflow uses Python commands but no actions/setup-python found.\n     Consider adding setup-python for better local compatibility.\n")
+		}
+	}
+
 	// Create step runner
 	stepRunner := NewStepRunner(jr.cli, containerID, workingDir)
 

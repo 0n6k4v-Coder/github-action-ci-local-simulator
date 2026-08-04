@@ -1,0 +1,17 @@
+name: auto-install-python
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # NOTE: No actions/setup-python here
+    steps:
+      - name: Install dependencies with pip
+        run: pip install --version
+
+      - name: Run python
+        run: python3 --version
+
+      - name: Run pytest
+        run: pytest --version || echo "pytest not installed (expected)"
