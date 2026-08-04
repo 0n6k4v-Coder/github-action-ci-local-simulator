@@ -1,0 +1,28 @@
+name: expression-functions
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set outputs
+        id: sample
+        run: |
+          echo "ref=refs/heads/main" >> "$GITHUB_OUTPUT"
+          echo "name=world" >> "$GITHUB_OUTPUT"
+
+      - name: contains check
+        if: contains(steps.sample.outputs.ref, 'refs/heads/')
+        run: echo contains-ok
+
+      - name: startsWith check
+        if: startsWith(steps.sample.outputs.ref, 'refs/heads/')
+        run: echo startsWith-ok
+
+      - name: endsWith check
+        if: endsWith(steps.sample.outputs.ref, 'main')
+        run: echo endsWith-ok
+
+      - name: format check
+        run: echo "${{ format('Hello {0}', steps.sample.outputs.name) }}"

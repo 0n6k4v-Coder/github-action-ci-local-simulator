@@ -3,6 +3,7 @@ package runner
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -91,20 +92,24 @@ func (ec *ExpressionContext) Interpolate(input string) (string, error) {
 	}
 
 	// Regex to match ${{ ... }}
-	re := regexp.MustCompile(`\$\{\{\s*([^}]+)\s*\}\}`)
+	re := regexp.MustCompile(`\$\{\{\s*(.*?)\s*\}\}`)
 	result := input
 
-	matches := re.FindAllStringSubmatch(input, -1)
-	for _, match := range matches {
-		fullMatch := match[0]
-		expr := strings.TrimSpace(match[1])
+	for {
+		loc := re.FindStringSubmatchIndex(result)
+		if loc == nil {
+			break
+		}
+
+		fullMatch := result[loc[0]:loc[1]]
+		expr := strings.TrimSpace(result[loc[2]:loc[3]])
 
 		value, err := ec.evaluateExpression(expr)
 		if err != nil {
 			return "", fmt.Errorf("interpolate %q: %w", fullMatch, err)
 		}
 
-		result = strings.Replace(result, fullMatch, value, 1)
+		result = result[:loc[0]] + value + result[loc[1]:]
 	}
 
 	return result, nil
@@ -132,10 +137,16 @@ func (ec *ExpressionContext) evaluateExpression(expr string) (string, error) {
 		return "", fmt.Errorf("unsupported expression: %s (functions, operators, and comparisons not yet supported)", expr)
 	}
 
-	// Handle status functions
-	if strings.Contains(expr, "(") || strings.Contains(expr, ")") {
+	// Handle functions
+	if strings.Contains(expr, "(") {
 		return ec.evaluateFunction(expr)
 	}
+
+	return ec.evaluateContextPath(expr)
+}
+
+func (ec *ExpressionContext) evaluateContextPath(expr string) (string, error) {
+	expr = strings.TrimSpace(expr)
 
 	// Split by dot notation
 	parts := strings.Split(expr, ".")
@@ -163,6 +174,14 @@ func (ec *ExpressionContext) evaluateExpression(expr string) (string, error) {
 		if value, ok := ec.github[key]; ok {
 			return value, nil
 		}
+		// Try case-insensitive key lookup for github context variables like github.ref / GITHUB_REF
+		upperKey := strings.ToUpper(key)
+		if value, ok := ec.github[upperKey]; ok {
+			return value, nil
+		}
+		if value, ok := ec.github["GITHUB_"+upperKey]; ok {
+			return value, nil
+		}
 		return "", nil
 
 	case "runner":
@@ -171,6 +190,13 @@ func (ec *ExpressionContext) evaluateExpression(expr string) (string, error) {
 		}
 		key := parts[1]
 		if value, ok := ec.runner[key]; ok {
+			return value, nil
+		}
+		upperKey := strings.ToUpper(key)
+		if value, ok := ec.runner[upperKey]; ok {
+			return value, nil
+		}
+		if value, ok := ec.runner["RUNNER_"+upperKey]; ok {
 			return value, nil
 		}
 		return "", nil
@@ -238,22 +264,243 @@ func (ec *ExpressionContext) evaluateExpression(expr string) (string, error) {
 	}
 }
 
-// evaluateFunction evaluates status functions like success(), failure(), always(), cancelled().
+// parseFunctionCall parses a function call like funcName(arg1, arg2, ...) into funcName and args.
+func parseFunctionCall(expr string) (string, []string, error) {
+	trimmed := strings.TrimSpace(expr)
+	idx := strings.Index(trimmed, "(")
+	if idx == -1 || !strings.HasSuffix(trimmed, ")") {
+		return "", nil, fmt.Errorf("invalid function call syntax: %s", expr)
+	}
+
+	funcName := strings.TrimSpace(trimmed[:idx])
+	argsStr := trimmed[idx+1 : len(trimmed)-1]
+
+	args, err := parseFunctionArgs(argsStr)
+	if err != nil {
+		return "", nil, err
+	}
+
+	return funcName, args, nil
+}
+
+// parseFunctionArgs parses comma-separated function arguments respecting quotes and nested parentheses.
+func parseFunctionArgs(argsStr string) ([]string, error) {
+	trimmed := strings.TrimSpace(argsStr)
+	if trimmed == "" {
+		return []string{}, nil
+	}
+
+	var args []string
+	var current strings.Builder
+	inSingleQuote := false
+	inDoubleQuote := false
+	escaped := false
+	parenDepth := 0
+
+	for i := 0; i < len(trimmed); i++ {
+		ch := trimmed[i]
+
+		if escaped {
+			current.WriteByte(ch)
+			escaped = false
+			continue
+		}
+
+		if ch == '\\' && (inSingleQuote || inDoubleQuote) {
+			escaped = true
+			current.WriteByte(ch)
+			continue
+		}
+
+		if ch == '\'' && !inDoubleQuote {
+			inSingleQuote = !inSingleQuote
+			current.WriteByte(ch)
+			continue
+		}
+
+		if ch == '"' && !inSingleQuote {
+			inDoubleQuote = !inDoubleQuote
+			current.WriteByte(ch)
+			continue
+		}
+
+		if !inSingleQuote && !inDoubleQuote {
+			if ch == '(' {
+				parenDepth++
+			} else if ch == ')' {
+				parenDepth--
+			} else if ch == ',' && parenDepth == 0 {
+				args = append(args, strings.TrimSpace(current.String()))
+				current.Reset()
+				continue
+			}
+		}
+
+		current.WriteByte(ch)
+	}
+
+	if inSingleQuote || inDoubleQuote {
+		return nil, fmt.Errorf("unterminated string in function arguments")
+	}
+
+	args = append(args, strings.TrimSpace(current.String()))
+	return args, nil
+}
+
+// evaluateArgument evaluates a single argument token (literal string, number, bool, or context path).
+func (ec *ExpressionContext) evaluateArgument(arg string) (string, error) {
+	arg = strings.TrimSpace(arg)
+	if arg == "" {
+		return "", nil
+	}
+
+	// Check if arg is a nested function call
+	if strings.Contains(arg, "(") && strings.Contains(arg, ")") {
+		return "", NewUnsupportedError("nested expression functions are not supported")
+	}
+
+	// Single quoted string literal
+	if strings.HasPrefix(arg, "'") && strings.HasSuffix(arg, "'") && len(arg) >= 2 {
+		val := arg[1 : len(arg)-1]
+		val = strings.ReplaceAll(val, "''", "'")
+		return val, nil
+	}
+
+	// Double quoted string literal (convenience)
+	if strings.HasPrefix(arg, "\"") && strings.HasSuffix(arg, "\"") && len(arg) >= 2 {
+		return arg[1 : len(arg)-1], nil
+	}
+
+	// Boolean literal
+	if strings.EqualFold(arg, "true") || strings.EqualFold(arg, "false") {
+		return strings.ToLower(arg), nil
+	}
+
+	// Number literal
+	if _, err := strconv.ParseFloat(arg, 64); err == nil {
+		return arg, nil
+	}
+
+	// Otherwise, evaluate as context path
+	return ec.evaluateContextPath(arg)
+}
+
+// evaluateFunction evaluates expression functions.
 func (ec *ExpressionContext) evaluateFunction(expr string) (string, error) {
 	trimmed := strings.TrimSpace(expr)
 
-	// Check for supported functions
-	switch {
-	case strings.HasPrefix(trimmed, "success()"):
+	funcName, rawArgs, err := parseFunctionCall(trimmed)
+	if err != nil {
+		return "", err
+	}
+
+	switch funcName {
+	case "success":
+		if len(rawArgs) != 0 {
+			return "", fmt.Errorf("success() takes no arguments")
+		}
 		return fmt.Sprintf("%v", ec.evalSuccess()), nil
-	case strings.HasPrefix(trimmed, "failure()"):
+	case "failure":
+		if len(rawArgs) != 0 {
+			return "", fmt.Errorf("failure() takes no arguments")
+		}
 		return fmt.Sprintf("%v", ec.evalFailure()), nil
-	case strings.HasPrefix(trimmed, "always()"):
+	case "always":
+		if len(rawArgs) != 0 {
+			return "", fmt.Errorf("always() takes no arguments")
+		}
 		return "true", nil
-	case strings.HasPrefix(trimmed, "cancelled()"):
+	case "cancelled":
+		if len(rawArgs) != 0 {
+			return "", fmt.Errorf("cancelled() takes no arguments")
+		}
 		return fmt.Sprintf("%v", ec.evalCancelled()), nil
+
+	case "contains":
+		if len(rawArgs) != 2 {
+			return "", fmt.Errorf("contains() requires exactly 2 arguments")
+		}
+		arg1, err := ec.evaluateArgument(rawArgs[0])
+		if err != nil {
+			return "", err
+		}
+		arg2, err := ec.evaluateArgument(rawArgs[1])
+		if err != nil {
+			return "", err
+		}
+		if arg1 == "" || arg2 == "" {
+			return "false", nil
+		}
+		res := strings.Contains(strings.ToLower(arg1), strings.ToLower(arg2))
+		return fmt.Sprintf("%v", res), nil
+
+	case "startsWith":
+		if len(rawArgs) != 2 {
+			return "", fmt.Errorf("startsWith() requires exactly 2 arguments")
+		}
+		arg1, err := ec.evaluateArgument(rawArgs[0])
+		if err != nil {
+			return "", err
+		}
+		arg2, err := ec.evaluateArgument(rawArgs[1])
+		if err != nil {
+			return "", err
+		}
+		if arg1 == "" || arg2 == "" {
+			return "false", nil
+		}
+		res := strings.HasPrefix(strings.ToLower(arg1), strings.ToLower(arg2))
+		return fmt.Sprintf("%v", res), nil
+
+	case "endsWith":
+		if len(rawArgs) != 2 {
+			return "", fmt.Errorf("endsWith() requires exactly 2 arguments")
+		}
+		arg1, err := ec.evaluateArgument(rawArgs[0])
+		if err != nil {
+			return "", err
+		}
+		arg2, err := ec.evaluateArgument(rawArgs[1])
+		if err != nil {
+			return "", err
+		}
+		if arg1 == "" || arg2 == "" {
+			return "false", nil
+		}
+		res := strings.HasSuffix(strings.ToLower(arg1), strings.ToLower(arg2))
+		return fmt.Sprintf("%v", res), nil
+
+	case "format":
+		if len(rawArgs) < 1 {
+			return "", fmt.Errorf("format() requires at least 1 argument")
+		}
+		formatStr, err := ec.evaluateArgument(rawArgs[0])
+		if err != nil {
+			return "", err
+		}
+		evalArgs := make([]string, len(rawArgs)-1)
+		for i := 1; i < len(rawArgs); i++ {
+			val, err := ec.evaluateArgument(rawArgs[i])
+			if err != nil {
+				return "", err
+			}
+			evalArgs[i-1] = val
+		}
+		res := formatStr
+		for i, val := range evalArgs {
+			placeholder := fmt.Sprintf("{%d}", i)
+			res = strings.ReplaceAll(res, placeholder, val)
+		}
+		// If there are unreplaced placeholders like {X}, replace with empty string
+		rePlaceholder := regexp.MustCompile(`\{\d+\}`)
+		res = rePlaceholder.ReplaceAllString(res, "")
+		return res, nil
+
+	case "hashFiles", "fromJson", "toJson", "join":
+		return "", NewUnsupportedError(fmt.Sprintf("unsupported expression function: %s", funcName))
+
 	default:
-		return "", fmt.Errorf("unsupported expression: %s (functions, operators, and comparisons not yet supported)", expr)
+		return "", NewUnsupportedError(fmt.Sprintf("unsupported expression function: %s", funcName))
 	}
 }
 

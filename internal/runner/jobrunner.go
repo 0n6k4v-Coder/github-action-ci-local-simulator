@@ -244,7 +244,11 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 		interpolatedStepEnv, err := exprContext.InterpolateMap(stepEnv)
 		if err != nil {
 			firstError = fmt.Errorf("interpolate step env: %w", err)
-			exitCode = 1
+			if ecErr, ok := err.(interface{ Code() int }); ok {
+				exitCode = ecErr.Code()
+			} else {
+				exitCode = 1
+			}
 			break
 		}
 		stepEnv = interpolatedStepEnv
