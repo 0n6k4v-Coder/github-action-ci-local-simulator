@@ -21,6 +21,9 @@ func NewRegistry() *Registry {
 	}
 	r.Register("actions/checkout", ExecuteCheckout)
 	r.Register("actions/setup-python", ExecuteSetupPython)
+	r.Register("actions/cache", ExecuteCache)
+	r.Register("actions/upload-artifact", ExecuteUploadArtifact)
+	r.Register("actions/download-artifact", ExecuteDownloadArtifact)
 	return r
 }
 

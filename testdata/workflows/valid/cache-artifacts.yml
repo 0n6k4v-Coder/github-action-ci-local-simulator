@@ -1,0 +1,41 @@
+name: cache-artifacts
+
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-cache-v1
+          
+      - name: Create dummy file
+        run: mkdir -p ~/.cache/pip && echo "cached data" > ~/.cache/pip/data.txt
+        
+      - name: Build artifact
+        run: echo "build output" > output.txt
+        
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-build
+          path: output.txt
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: my-build
+          
+      - name: Verify artifact
+        run: cat output.txt | grep "build output"

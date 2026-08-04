@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"context"
 	"fmt"
 	"strings"
 )
@@ -93,3 +94,54 @@ func (e *ActionValidationError) Code() int {
 func NewActionValidationError(msg string) *ActionValidationError {
 	return &ActionValidationError{Message: msg}
 }
+
+type contextKey string
+
+const (
+	cacheDirKey     contextKey = "gacils-cache-dir"
+	artifactsDirKey contextKey = "gacils-artifacts-dir"
+	jobIDKey        contextKey = "gacils-job-id"
+)
+
+// WithHostDirs returns a context with host cache and artifacts directories.
+func WithHostDirs(ctx context.Context, cacheDir, artifactsDir string) context.Context {
+	ctx = context.WithValue(ctx, cacheDirKey, cacheDir)
+	ctx = context.WithValue(ctx, artifactsDirKey, artifactsDir)
+	return ctx
+}
+
+// WithJobID returns a context with job ID.
+func WithJobID(ctx context.Context, jobID string) context.Context {
+	return context.WithValue(ctx, jobIDKey, jobID)
+}
+
+// GetCacheDir retrieves the host cache directory from context, defaulting to ".gacils-cache".
+func GetCacheDir(ctx context.Context) string {
+	if ctx != nil {
+		if val, ok := ctx.Value(cacheDirKey).(string); ok && val != "" {
+			return val
+		}
+	}
+	return ".gacils-cache"
+}
+
+// GetArtifactsDir retrieves the host artifacts directory from context, defaulting to ".gacils-artifacts".
+func GetArtifactsDir(ctx context.Context) string {
+	if ctx != nil {
+		if val, ok := ctx.Value(artifactsDirKey).(string); ok && val != "" {
+			return val
+		}
+	}
+	return ".gacils-artifacts"
+}
+
+// GetJobID retrieves the job ID from context.
+func GetJobID(ctx context.Context) string {
+	if ctx != nil {
+		if val, ok := ctx.Value(jobIDKey).(string); ok {
+			return val
+		}
+	}
+	return ""
+}
+

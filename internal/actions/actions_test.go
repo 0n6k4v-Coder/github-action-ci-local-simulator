@@ -83,17 +83,32 @@ func TestRegistrySupported(t *testing.T) {
 	}
 
 	cacheRef, _ := ParseActionRef("actions/cache@v4")
-	if r.IsSupported(cacheRef) {
-		t.Errorf("expected actions/cache@v4 to be unsupported")
+	if !r.IsSupported(cacheRef) {
+		t.Errorf("expected actions/cache@v4 to be supported")
+	}
+
+	uploadRef, _ := ParseActionRef("actions/upload-artifact@v4")
+	if !r.IsSupported(uploadRef) {
+		t.Errorf("expected actions/upload-artifact@v4 to be supported")
+	}
+
+	downloadRef, _ := ParseActionRef("actions/download-artifact@v4")
+	if !r.IsSupported(downloadRef) {
+		t.Errorf("expected actions/download-artifact@v4 to be supported")
+	}
+
+	unknownRef, _ := ParseActionRef("actions/unknown@v1")
+	if r.IsSupported(unknownRef) {
+		t.Errorf("expected actions/unknown@v1 to be unsupported")
 	}
 }
 
 func TestExecuteUnsupportedAction(t *testing.T) {
 	r := NewRegistry()
-	cacheRef, _ := ParseActionRef("actions/cache@v4")
+	unknownRef, _ := ParseActionRef("actions/unknown@v1")
 	ctx := context.Background()
 
-	_, err := r.Execute(ctx, nil, "", "", cacheRef, nil)
+	_, err := r.Execute(ctx, nil, "", "", unknownRef, nil)
 	if err == nil {
 		t.Fatalf("expected error for unsupported action, got nil")
 	}
@@ -107,8 +122,8 @@ func TestExecuteUnsupportedAction(t *testing.T) {
 		t.Errorf("exit code = %d, want 3", uerr.Code())
 	}
 
-	if uerr.Error() != "unsupported action: actions/cache" {
-		t.Errorf("Error() = %q, want %q", uerr.Error(), "unsupported action: actions/cache")
+	if uerr.Error() != "unsupported action: actions/unknown" {
+		t.Errorf("Error() = %q, want %q", uerr.Error(), "unsupported action: actions/unknown")
 	}
 }
 
@@ -148,3 +163,72 @@ func TestExecuteSetupPythonSimulation(t *testing.T) {
 		t.Errorf("env[python-location] = %q, want %q", res.Env["python-location"], "/usr/bin")
 	}
 }
+
+func TestExecuteCache(t *testing.T) {
+	ctx := context.Background()
+
+	// Test missing key
+	_, err := ExecuteCache(ctx, nil, "", "", map[string]any{"path": "/tmp/cache"})
+	if err == nil {
+		t.Fatalf("expected validation error for missing key")
+	}
+
+	// Test missing path
+	_, err = ExecuteCache(ctx, nil, "", "", map[string]any{"key": "my-key"})
+	if err == nil {
+		t.Fatalf("expected validation error for missing path")
+	}
+
+	// Test cache execution (first run: cache miss)
+	tempCacheDir := t.TempDir()
+	ctx = WithHostDirs(ctx, tempCacheDir, t.TempDir())
+	with := map[string]any{
+		"key":  "my-key-1",
+		"path": "/tmp/cache",
+	}
+	res, err := ExecuteCache(ctx, nil, "", "", with)
+	if err != nil {
+		t.Fatalf("ExecuteCache failed: %v", err)
+	}
+	if res.Env["cache-hit"] != "false" {
+		t.Errorf("expected cache-hit=false on first run, got %s", res.Env["cache-hit"])
+	}
+}
+
+func TestExecuteArtifacts(t *testing.T) {
+	ctx := context.Background()
+
+	// Upload validation
+	_, err := ExecuteUploadArtifact(ctx, nil, "", "", map[string]any{"name": "my-art"})
+	if err == nil {
+		t.Fatalf("expected validation error for missing path in upload")
+	}
+
+	tempArtDir := t.TempDir()
+	ctx = WithHostDirs(ctx, t.TempDir(), tempArtDir)
+	ctx = WithJobID(ctx, "job1")
+
+	// Upload artifact
+	upRes, err := ExecuteUploadArtifact(ctx, nil, "", "/tmp", map[string]any{
+		"name": "my-build",
+		"path": "output.txt",
+	})
+	if err != nil {
+		t.Fatalf("ExecuteUploadArtifact failed: %v", err)
+	}
+	if upRes == nil || upRes.Stdout == "" {
+		t.Errorf("expected non-empty stdout")
+	}
+
+	// Download artifact
+	downRes, err := ExecuteDownloadArtifact(ctx, nil, "", "/tmp", map[string]any{
+		"name": "my-build",
+	})
+	if err != nil {
+		t.Fatalf("ExecuteDownloadArtifact failed: %v", err)
+	}
+	if downRes == nil || downRes.Stdout == "" {
+		t.Errorf("expected non-empty stdout")
+	}
+}
+

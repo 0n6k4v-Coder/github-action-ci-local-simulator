@@ -3,9 +3,11 @@ package runner
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
 	"sync"
 
+	"github.com/0n6k4v-Coder/github-action-ci-local-simulator/internal/actions"
 	"github.com/0n6k4v-Coder/github-action-ci-local-simulator/internal/workflow"
 )
 
@@ -52,6 +54,17 @@ func (wr *WorkflowRunner) RunWorkflow(
 			Status:   StatusSuccess,
 		}, nil
 	}
+
+	// Setup host cache and artifacts directories
+	cacheDir := ".gacils-cache"
+	artifactsDir := ".gacils-artifacts"
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		return nil, fmt.Errorf("create host cache dir: %w", err)
+	}
+	if err := os.MkdirAll(artifactsDir, 0755); err != nil {
+		return nil, fmt.Errorf("create host artifacts dir: %w", err)
+	}
+	ctx = actions.WithHostDirs(ctx, cacheDir, artifactsDir)
 
 	// 2. Track original job states
 	var mu sync.Mutex
@@ -154,7 +167,8 @@ func (wr *WorkflowRunner) RunWorkflow(
 						}
 
 						expJob := expandedWf.Jobs[id]
-						res, err := wr.jobRunner.RunJob(ctx, expJob, id, workflowEnv, wf.Defaults, wf, workspacePath, needsCtx)
+						jobCtx := actions.WithJobID(ctx, id)
+						res, err := wr.jobRunner.RunJob(jobCtx, expJob, id, workflowEnv, wf.Defaults, wf, workspacePath, needsCtx)
 						if err != nil {
 							instErrOnce.Do(func() {
 								instErr = fmt.Errorf("run job %s: %w", id, err)

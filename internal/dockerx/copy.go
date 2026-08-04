@@ -345,3 +345,63 @@ func CleanupWorkspace(ctx context.Context, cli *client.Client, containerID, work
 
 	return nil
 }
+
+// CopyHostToContainer copies files from host directory or file to container path.
+func CopyHostToContainer(ctx context.Context, cli *client.Client, containerID, srcHostPath, dstContainerPath string) error {
+	if containerID == "" {
+		return fmt.Errorf("container ID is required")
+	}
+	if srcHostPath == "" {
+		return fmt.Errorf("source host path is required")
+	}
+	if dstContainerPath == "" {
+		return fmt.Errorf("destination container path is required")
+	}
+
+	// Ensure destination directory exists in container
+	if err := EnsureWorkspaceDir(ctx, cli, containerID, dstContainerPath); err != nil {
+		return fmt.Errorf("ensure container dir: %w", err)
+	}
+
+	info, err := os.Stat(srcHostPath)
+	if err != nil {
+		return fmt.Errorf("stat source path: %w", err)
+	}
+
+	var tarReader io.Reader
+	if info.IsDir() {
+		tarReader, err = TarDirectory(srcHostPath, nil)
+		if err != nil {
+			return fmt.Errorf("tar directory: %w", err)
+		}
+	} else {
+		pr, pw := io.Pipe()
+		tw := tar.NewWriter(pw)
+		go func() {
+			defer pw.Close()
+			defer tw.Close()
+			file, err := os.Open(srcHostPath)
+			if err != nil {
+				return
+			}
+			defer file.Close()
+			hdr, err := tar.FileInfoHeader(info, "")
+			if err != nil {
+				return
+			}
+			hdr.Name = filepath.Base(srcHostPath)
+			if err := tw.WriteHeader(hdr); err != nil {
+				return
+			}
+			_, _ = io.Copy(tw, file)
+		}()
+		tarReader = pr
+	}
+
+	return CopyToContainer(ctx, cli, containerID, dstContainerPath, tarReader)
+}
+
+// CopyContainerToHost copies files or directories from container path to host destination path.
+func CopyContainerToHost(ctx context.Context, cli *client.Client, containerID, srcContainerPath, dstHostPath string) error {
+	return CopyFromContainer(ctx, cli, containerID, srcContainerPath, dstHostPath)
+}
