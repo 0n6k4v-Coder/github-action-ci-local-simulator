@@ -1,0 +1,29 @@
+name: expression-compare
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set outputs
+        id: sample
+        run: |
+          echo "ref=refs/heads/main" >> "$GITHUB_OUTPUT"
+          echo "name=world" >> "$GITHUB_OUTPUT"
+
+      - name: equality check
+        if: steps.sample.outputs.ref == 'refs/heads/main'
+        run: echo equality-ok
+
+      - name: inequality check
+        if: steps.sample.outputs.ref != 'refs/heads/develop'
+        run: echo inequality-ok
+
+      - name: function comparison check
+        if: contains(steps.sample.outputs.ref, 'refs/') == true
+        run: echo function-compare-ok
+
+      - name: status comparison check
+        if: success() == true
+        run: echo success-compare-ok

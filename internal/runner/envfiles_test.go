@@ -252,7 +252,7 @@ func TestExpressionContextUnsupported(t *testing.T) {
 	unsupported := []string{
 		"${{ env.VAR && true }}",
 		"${{ github.something() }}",
-		"${{ runner.os == 'Linux' }}",
+		"${{ runner.os < 'Linux' }}",
 	}
 
 	for _, expr := range unsupported {
