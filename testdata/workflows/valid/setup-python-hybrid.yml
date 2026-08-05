@@ -1,0 +1,21 @@
+name: setup-python-hybrid-test
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      
+      - name: Verify Python is available
+        run: python3 --version
+      
+      - name: Verify pip is available
+        run: pip --version
+      
+      - name: Install a package
+        run: pip install --quiet ruff && ruff --version

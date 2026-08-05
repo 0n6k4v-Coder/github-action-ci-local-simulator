@@ -61,6 +61,20 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 		return &JobResult{JobID: jobID, ExitCode: 1, Error: err}, nil
 	}
 
+	// Check if job has setup-python
+	if setupStep := findSetupPythonStep(job); setupStep != nil {
+		pythonVersion := extractPythonVersion(setupStep)
+		pythonImage := fmt.Sprintf("python:%s-slim", pythonVersion)
+
+		// Try to pull/use python image
+		if err := dockerx.EnsureImage(ctx, jr.cli, pythonImage); err == nil {
+			imageName = pythonImage
+			fmt.Printf("  ℹ️ Using %s for actions/setup-python\n", pythonImage)
+		} else {
+			fmt.Printf("  ⚠️ Could not use %s, will auto-install Python\n", pythonImage)
+		}
+	}
+
 	// Ensure image exists
 	if err := dockerx.EnsureImage(ctx, jr.cli, imageName); err != nil {
 		return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("ensure image %s: %w\n  Hint: Check image name and run 'docker login' if private", imageName, err)}, nil
@@ -702,4 +716,29 @@ func resolveWorkingDirectory(step workflow.Step, jobDefaults, workflowDefaults *
 		return filepath.Join(defaultWorkingDir, dir)
 	}
 	return dir
+}
+
+// findSetupPythonStep finds the actions/setup-python step in a job
+func findSetupPythonStep(job workflow.Job) *workflow.Step {
+	for i := range job.Steps {
+		step := &job.Steps[i]
+		if step.Uses != "" && strings.Contains(step.Uses, "actions/setup-python") {
+			return step
+		}
+	}
+	return nil
+}
+
+// extractPythonVersion gets python-version from setup-python step
+func extractPythonVersion(step *workflow.Step) string {
+	if step == nil || step.With == nil {
+		return "3.12" // default
+	}
+	if version, ok := step.With["python-version"]; ok {
+		v := fmt.Sprintf("%v", version)
+		if v != "" && !strings.Contains(v, "${{") {
+			return v
+		}
+	}
+	return "3.12" // default
 }
