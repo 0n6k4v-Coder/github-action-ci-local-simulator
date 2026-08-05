@@ -116,3 +116,36 @@ func TestEnsurePythonInstalled_Idempotent(t *testing.T) {
 		t.Errorf("expected still 1 install call after second call (idempotent), got %d", installCount)
 	}
 }
+
+func TestEnsurePythonInstalled_RemovesExternallyManaged(t *testing.T) {
+	origExec := execCommand
+	defer func() { execCommand = origExec }()
+
+	var capturedCmd []string
+	execCommand = func(ctx context.Context, cli *client.Client, containerID, workingDir string, cmd []string, env map[string]string) (*dockerx.ExecResult, error) {
+		if len(cmd) > 0 && cmd[0] == "which" {
+			return &dockerx.ExecResult{ExitCode: 1}, nil // python3 not found
+		}
+		if len(cmd) > 2 && strings.Contains(cmd[2], "apt-get install") {
+			capturedCmd = cmd
+			return &dockerx.ExecResult{ExitCode: 0}, nil
+		}
+		return &dockerx.ExecResult{ExitCode: 0}, nil
+	}
+
+	ctx := context.Background()
+	err := ensurePythonInstalled(ctx, nil, "container-1", false, "ubuntu:24.04")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify install command contains EXTERNALLY-MANAGED removal
+	if len(capturedCmd) < 3 {
+		t.Fatalf("captured command too short: %v", capturedCmd)
+	}
+
+	installScript := capturedCmd[2]
+	if !strings.Contains(installScript, "rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED") {
+		t.Errorf("install command should remove EXTERNALLY-MANAGED, got: %s", installScript)
+	}
+}
