@@ -110,21 +110,17 @@ func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths
 		// Determine workspace path
 		var jobWorkspacePath string
 		if i < len(paths) {
-			info, err := os.Stat(paths[i])
+			var err error
+			jobWorkspacePath, err = runner.FindRepoRoot(paths[i])
 			if err != nil {
-				return fmt.Errorf("stat workflow path: %w", err)
-			}
-			if info.IsDir() {
-				jobWorkspacePath = paths[i]
-			} else {
-				jobWorkspacePath = filepath.Dir(paths[i])
+				return fmt.Errorf("find repo root: %w", err)
 			}
 		} else {
 			jobWorkspacePath = "."
-		}
-		jobWorkspacePath, err = filepath.Abs(jobWorkspacePath)
-		if err != nil {
-			return fmt.Errorf("resolve workspace path: %w", err)
+			jobWorkspacePath, err = filepath.Abs(jobWorkspacePath)
+			if err != nil {
+				return fmt.Errorf("resolve workspace path: %w", err)
+			}
 		}
 
 		result, err := workflowRunner.RunWorkflow(ctx, wf, expandedWf, jobWorkspacePath, workflowEnv)
