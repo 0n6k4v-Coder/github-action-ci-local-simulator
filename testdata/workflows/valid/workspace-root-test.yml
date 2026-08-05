@@ -1,0 +1,22 @@
+name: workspace-root-test
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check workspace contents
+        run: |
+          echo "Workspace contents:"
+          ls -la /github/workspace/
+          
+          file_count=$(find /github/workspace/ -type f | wc -l)
+          echo "File count: $file_count"
+          
+          if [ "$file_count" -lt 2 ]; then
+            echo "ERROR: Workspace appears to only contain workflow file"
+            exit 1
+          fi
+          
+          echo "SUCCESS: Workspace contains full repo"
