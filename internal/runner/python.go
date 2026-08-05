@@ -58,9 +58,9 @@ func jobHasSetupPython(job workflow.Job) bool {
 }
 
 func ensurePythonInstalled(ctx context.Context, cli *client.Client, containerID string, hasSetupPython bool, imageName string) error {
-	// Skip if setup-python action is present (it handles Python)
+	// Log setup-python detection
 	if hasSetupPython {
-		return nil
+		fmt.Printf("  ℹ️ setup-python detected, ensuring Python is available\n")
 	}
 
 	// Skip if image is already python-based

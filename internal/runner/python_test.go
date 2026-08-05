@@ -57,12 +57,24 @@ func TestLooksLikePythonCommand(t *testing.T) {
 	}
 }
 
-func TestEnsurePythonInstalled_SkippedWhenSetupPythonPresent(t *testing.T) {
+func TestEnsurePythonInstalled_SkippedWhenPythonAvailable(t *testing.T) {
+	origExec := execCommand
+	defer func() { execCommand = origExec }()
+
+	// Mock: python3 already available
+	execCommand = func(ctx context.Context, cli *client.Client, containerID, workingDir string, cmd []string, env map[string]string) (*dockerx.ExecResult, error) {
+		if len(cmd) > 0 && cmd[0] == "which" {
+			return &dockerx.ExecResult{ExitCode: 0, Stdout: "/usr/bin/python3\n"}, nil
+		}
+		return &dockerx.ExecResult{ExitCode: 0}, nil
+	}
+
 	ctx := context.Background()
-	// Should skip immediately without calling execCommand (cli can be nil)
+	// With setup-python present AND python3 already available,
+	// should skip installation (idempotent check)
 	err := ensurePythonInstalled(ctx, nil, "container-id", true, "ubuntu:24.04")
 	if err != nil {
-		t.Fatalf("expected nil error when setup-python is present, got %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
