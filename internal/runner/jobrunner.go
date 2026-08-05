@@ -263,6 +263,13 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 		}
 	}
 
+	// Auto-install Docker CLI if docker commands are detected
+	if jobHasDockerCommands(job) {
+		if err := ensureDockerCLIAvailable(ctx, jr.cli, containerID, imageName); err != nil {
+			fmt.Printf("  ⚠️ Could not auto-install docker CLI: %v\n", err)
+		}
+	}
+
 	// Create step runner
 	stepRunner := NewStepRunner(jr.cli, containerID, workingDir)
 

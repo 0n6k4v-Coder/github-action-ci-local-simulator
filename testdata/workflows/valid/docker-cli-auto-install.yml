@@ -1,0 +1,13 @@
+name: docker-cli-auto-install
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Docker version check
+        run: docker --version
+
+      - name: Docker info
+        run: docker info 2>&1 | head -5 || echo "No daemon access (expected in some environments)"
