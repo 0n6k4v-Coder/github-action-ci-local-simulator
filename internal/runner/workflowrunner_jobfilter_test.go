@@ -37,7 +37,7 @@ func TestRunWorkflow_JobFilter_SingleJob(t *testing.T) {
 	runner := newWorkflowRunnerWithInterface(mockRunner)
 
 	ctx := context.Background()
-	result, err := runner.RunWorkflow(ctx, wf, wf, "/workspace", nil, "lint")
+	result, err := runner.RunWorkflow(ctx, wf, wf, "/workspace", nil, "lint", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestRunWorkflow_JobFilter_NoFilter(t *testing.T) {
 	runner := newWorkflowRunnerWithInterface(mockRunner)
 
 	ctx := context.Background()
-	result, err := runner.RunWorkflow(ctx, wf, wf, "/workspace", nil, "")
+	result, err := runner.RunWorkflow(ctx, wf, wf, "/workspace", nil, "", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestRunWorkflow_JobFilter_NonExistentJob(t *testing.T) {
 	runner := newWorkflowRunnerWithInterface(mockRunner)
 
 	ctx := context.Background()
-	_, err := runner.RunWorkflow(ctx, wf, wf, "/workspace", nil, "nonexistent")
+	_, err := runner.RunWorkflow(ctx, wf, wf, "/workspace", nil, "nonexistent", 0)
 
 	// Should return error for non-existent job
 	if err == nil {
@@ -157,7 +157,7 @@ func TestRunWorkflow_JobFilter_WithDependencies(t *testing.T) {
 	runner := newWorkflowRunnerWithInterface(mockRunner)
 
 	ctx := context.Background()
-	result, err := runner.RunWorkflow(ctx, wf, wf, "/workspace", nil, "build")
+	result, err := runner.RunWorkflow(ctx, wf, wf, "/workspace", nil, "build", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestRunWorkflow_JobFilter_MatrixJob(t *testing.T) {
 	runner := newWorkflowRunnerWithInterface(mockRunner)
 
 	ctx := context.Background()
-	result, err := runner.RunWorkflow(ctx, wf, wf, "/workspace", nil, "lint")
+	result, err := runner.RunWorkflow(ctx, wf, wf, "/workspace", nil, "lint", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

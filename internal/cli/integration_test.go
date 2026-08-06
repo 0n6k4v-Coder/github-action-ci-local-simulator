@@ -164,16 +164,52 @@ func TestCLI_ParallelFlagInHelp(t *testing.T) {
 	}
 }
 
-// TestCLI_ParallelWarn verifies --parallel emits a "not yet implemented" warning
-func TestCLI_ParallelWarn(t *testing.T) {
+// TestCLI_ParallelFlag verifies --parallel flag is implemented (no warning)
+func TestCLI_ParallelFlag(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+
 	binary := buildTestBinary(t)
 
-	// Point at a nonexistent path so the run exits early after flag processing
-	cmd := exec.Command(binary, "run", "--parallel", "4", "-W", "/nonexistent/workflow.yml")
-	output, _ := cmd.CombinedOutput()
+	// Create a workflow with multiple independent jobs
+	tmpDir := t.TempDir()
+	wfPath := createTestWorkflow(t, tmpDir, `
+name: test
+on: push
+jobs:
+  job1:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "job1"
+  job2:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "job2"
+  job3:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "job3"
+`)
 
-	if !strings.Contains(string(output), "Warning") || !strings.Contains(string(output), "--parallel") {
-		t.Errorf("expected --parallel warning in output, got: %s", output)
+	// Run with --parallel 1 (sequential execution)
+	cmd := exec.Command(binary, "run", "-W", wfPath, "--parallel", "1")
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		t.Errorf("gacils run failed: %v\nOutput: %s", err, output)
+	}
+
+	outputStr := string(output)
+
+	// Should NOT see the warning stub
+	if strings.Contains(outputStr, "not yet implemented") {
+		t.Error("should not see 'not yet implemented' warning — flag should be implemented")
+	}
+
+	// Should complete successfully
+	if !strings.Contains(outputStr, "job1") || !strings.Contains(outputStr, "job2") || !strings.Contains(outputStr, "job3") {
+		t.Errorf("expected all jobs to run, output: %s", outputStr)
 	}
 }
 

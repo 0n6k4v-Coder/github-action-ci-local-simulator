@@ -23,9 +23,6 @@ func newRunCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Warn about flags that are accepted but not yet implemented,
 			// so users get actionable feedback instead of silent no-ops.
-			if flags.Parallel != 0 {
-				fmt.Fprintf(os.Stderr, "Warning: --parallel is not yet implemented and will be ignored.\n")
-			}
 			if flags.CRLF != "convert" {
 				fmt.Fprintf(os.Stderr, "Warning: --crlf=%s is not yet implemented; defaulting to 'convert' behavior.\n", flags.CRLF)
 			}
@@ -77,7 +74,7 @@ func newRunCmd() *cobra.Command {
 			}
 
 			// Execute workflows
-		return executeWorkflows(cmd.Context(), workflows, paths, flags.Job, flags.Offline)
+			return executeWorkflows(cmd.Context(), workflows, paths, flags.Job, flags.Offline, flags.Parallel)
 		},
 	}
 
@@ -87,7 +84,7 @@ func newRunCmd() *cobra.Command {
 }
 
 // executeWorkflows executes the loaded workflows using Docker.
-func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths []string, jobFilter string, offline bool) error {
+func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths []string, jobFilter string, offline bool, parallel int) error {
 	// Create Docker client
 	cli, err := dockerx.CreateDockerClient()
 	if err != nil {
@@ -135,7 +132,7 @@ func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths
 			}
 		}
 
-		result, err := workflowRunner.RunWorkflow(ctx, wf, expandedWf, jobWorkspacePath, workflowEnv, jobFilter)
+		result, err := workflowRunner.RunWorkflow(ctx, wf, expandedWf, jobWorkspacePath, workflowEnv, jobFilter, parallel)
 		if err != nil {
 			if verr, ok := err.(*workflow.ValidationErrorWithCode); ok {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", verr)

@@ -45,6 +45,7 @@ func (wr *WorkflowRunner) RunWorkflow(
 	workspacePath string,
 	workflowEnv map[string]string,
 	jobFilter string,
+	parallel int,
 ) (*WorkflowResult, error) {
 	// 1. Validate needs graph
 	if err := ValidateNeeds(wf); err != nil {
@@ -119,7 +120,13 @@ func (wr *WorkflowRunner) RunWorkflow(
 	var runErr error
 	var errOnce sync.Once
 	var wg sync.WaitGroup
-	
+
+	// Semaphore for limiting concurrent jobs
+	var sem chan struct{}
+	if parallel > 0 {
+		sem = make(chan struct{}, parallel)
+	}
+
 	// Count jobs that will actually run (respecting job filter)
 	jobsToRun := 0
 	for id := range wf.Jobs {
@@ -136,8 +143,20 @@ func (wr *WorkflowRunner) RunWorkflow(
 			return
 		}
 
+		// Acquire semaphore if parallel limiting is enabled
+		if sem != nil {
+			sem <- struct{}{} // Block until slot available
+		}
+
 		go func() {
 			defer wg.Done()
+
+			// Release semaphore when job completes
+			defer func() {
+				if sem != nil {
+					<-sem
+				}
+			}()
 
 			if ctx.Err() != nil {
 				return

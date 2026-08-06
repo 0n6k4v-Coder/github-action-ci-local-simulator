@@ -60,7 +60,7 @@ func TestRunWorkflow_EmptyJobs(t *testing.T) {
 	wr := newWorkflowRunnerWithInterface(mock)
 
 	wf := &workflow.Workflow{Jobs: map[string]workflow.Job{}}
-	res, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "")
+	res, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestRunWorkflow_NilWorkflow(t *testing.T) {
 	mock := newMockJobRunner()
 	wr := newWorkflowRunnerWithInterface(mock)
 
-	res, err := wr.RunWorkflow(context.Background(), nil, nil, "/workspace", nil, "")
+	res, err := wr.RunWorkflow(context.Background(), nil, nil, "/workspace", nil, "", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestRunWorkflow_SingleJob(t *testing.T) {
 			"build": {RunsOn: "ubuntu-latest"},
 		},
 	}
-	res, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "")
+	res, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestRunWorkflow_MultipleJobs(t *testing.T) {
 			"job2": {RunsOn: "ubuntu-latest"},
 		},
 	}
-	res, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "")
+	res, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestRunWorkflow_LinearDependencies(t *testing.T) {
 			"deploy": {RunsOn: "ubuntu-latest", Needs: []any{"test"}},
 		},
 	}
-	res, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "")
+	res, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -177,7 +177,7 @@ func TestRunWorkflow_DiamondDependencies(t *testing.T) {
 			"report": {RunsOn: "ubuntu-latest", Needs: []any{"test1", "test2"}},
 		},
 	}
-	res, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "")
+	res, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -203,7 +203,7 @@ func TestRunWorkflow_ParallelIndependent(t *testing.T) {
 			"compile": {RunsOn: "ubuntu-latest"},
 		},
 	}
-	res, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "")
+	res, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -240,7 +240,7 @@ func TestRunWorkflow_MatrixExpansion(t *testing.T) {
 		},
 	}
 
-	res, err := wr.RunWorkflow(context.Background(), origWf, expandedWf, "/workspace", nil, "")
+	res, err := wr.RunWorkflow(context.Background(), origWf, expandedWf, "/workspace", nil, "", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestRunWorkflow_MatrixWithInclude(t *testing.T) {
 		},
 	}
 
-	res, err := wr.RunWorkflow(context.Background(), origWf, expandedWf, "/workspace", nil, "")
+	res, err := wr.RunWorkflow(context.Background(), origWf, expandedWf, "/workspace", nil, "", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -314,7 +314,7 @@ func TestRunWorkflow_MatrixWithExclude(t *testing.T) {
 		},
 	}
 
-	res, err := wr.RunWorkflow(context.Background(), origWf, expandedWf, "/workspace", nil, "")
+	res, err := wr.RunWorkflow(context.Background(), origWf, expandedWf, "/workspace", nil, "", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -337,7 +337,7 @@ func TestRunWorkflow_JobFailure(t *testing.T) {
 			"test": {RunsOn: "ubuntu-latest"},
 		},
 	}
-	res, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "")
+	res, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -356,7 +356,7 @@ func TestRunWorkflow_JobError(t *testing.T) {
 			"test": {RunsOn: "ubuntu-latest"},
 		},
 	}
-	_, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "")
+	_, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "", 0)
 	if err == nil || !strings.Contains(err.Error(), "container launch error") {
 		t.Fatalf("expected container launch error, got %v", err)
 	}
@@ -373,7 +373,7 @@ func TestRunWorkflow_ContinueOnError(t *testing.T) {
 			"test":  {RunsOn: "ubuntu-latest", Needs: []any{"build"}, If: "always()"},
 		},
 	}
-	res, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "")
+	res, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -395,7 +395,7 @@ func TestRunWorkflow_JobIfCondition(t *testing.T) {
 			"build": {RunsOn: "ubuntu-latest", If: "false"},
 		},
 	}
-	res, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "")
+	res, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -424,7 +424,7 @@ func TestRunWorkflow_CycleDependencyError(t *testing.T) {
 			"jobB": {RunsOn: "ubuntu-latest", Needs: []any{"jobA"}},
 		},
 	}
-	_, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "")
+	_, err := wr.RunWorkflow(context.Background(), wf, wf, "/workspace", nil, "", 0)
 	if err == nil {
 		t.Fatal("expected dependency cycle error")
 	}
