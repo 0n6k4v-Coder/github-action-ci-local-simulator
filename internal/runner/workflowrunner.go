@@ -271,7 +271,7 @@ func (wr *WorkflowRunner) RunWorkflow(
 
 // isMatrixInstance checks if expanded ID belongs to original job ID.
 func isMatrixInstance(expID, origJobID string) bool {
-	return len(expID) > len(origJobID) && expID[:len(origJobID)] == origJobID && expID[len(origJobID)] == ' '
+	return len(expID) > len(origJobID) && expID[:len(origJobID)] == origJobID && (expID[len(origJobID)] == ' ' || expID[len(origJobID)] == '-')
 }
 
 // shouldRunJob checks if job should run based on dependencies and job-level if condition.

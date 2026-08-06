@@ -9,8 +9,8 @@ import (
 	"github.com/docker/docker/client"
 )
 
-// isDockerAvailable checks if Docker daemon is accessible
-func isDockerAvailable() bool {
+// IsDockerAvailable checks if Docker daemon is accessible
+func IsDockerAvailable() bool {
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		return false
@@ -22,18 +22,18 @@ func isDockerAvailable() bool {
 	return err == nil
 }
 
-// skipIfNoDocker skips test if Docker is not available
-func skipIfNoDocker(t *testing.T) {
+// SkipIfNoDocker skips test if Docker is not available
+func SkipIfNoDocker(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	if !isDockerAvailable() {
+	if !IsDockerAvailable() {
 		t.Skip("skipping integration test: Docker not available")
 	}
 }
 
-// createDockerClient creates a new Docker client
-func createDockerClient(t *testing.T) *client.Client {
+// CreateDockerClient creates a new Docker client
+func CreateDockerClient(t *testing.T) *client.Client {
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		t.Fatalf("failed to create Docker client: %v", err)
@@ -41,23 +41,23 @@ func createDockerClient(t *testing.T) *client.Client {
 	return cli
 }
 
-// runGacils runs gacils binary with given arguments
-func runGacils(t *testing.T, args ...string) (string, error) {
+// RunGacils runs gacils binary with given arguments
+func RunGacils(t *testing.T, args ...string) (string, error) {
 	cmd := exec.Command("./gacils", args...)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
 
-// runGacilsInDir runs gacils binary inside a specific working directory
-func runGacilsInDir(t *testing.T, dir string, args ...string) (string, error) {
+// RunGacilsInDir runs gacils binary inside a specific working directory
+func RunGacilsInDir(t *testing.T, dir string, args ...string) (string, error) {
 	cmd := exec.Command("./gacils", args...)
 	cmd.Dir = dir
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
 
-// copyFile copies a file from src to dst
-func copyFile(src, dst string) error {
+// CopyFile copies a file from src to dst
+func CopyFile(src, dst string) error {
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return err
@@ -65,15 +65,24 @@ func copyFile(src, dst string) error {
 	return os.WriteFile(dst, data, 0755)
 }
 
-// buildGacils builds the gacils binary
-func buildGacils(t *testing.T) {
+// BuildGacils builds the gacils binary
+func BuildGacils(t *testing.T) {
 	cmd := exec.Command("go", "build", "-o", "gacils", "../../cmd/gacils")
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("failed to build gacils: %v", err)
 	}
 }
 
-// cleanupGacils removes the gacils binary
-func cleanupGacils(t *testing.T) {
+// CleanupGacils removes the gacils binary
+func CleanupGacils(t *testing.T) {
 	os.Remove("gacils")
 }
+// unexported aliases for backward compatibility within integration package
+func isDockerAvailable() bool { return IsDockerAvailable() }
+func skipIfNoDocker(t *testing.T) { SkipIfNoDocker(t) }
+func createDockerClient(t *testing.T) *client.Client { return CreateDockerClient(t) }
+func runGacils(t *testing.T, args ...string) (string, error) { return RunGacils(t, args...) }
+func runGacilsInDir(t *testing.T, dir string, args ...string) (string, error) { return RunGacilsInDir(t, dir, args...) }
+func copyFile(src, dst string) error { return CopyFile(src, dst) }
+func buildGacils(t *testing.T) { BuildGacils(t) }
+func cleanupGacils(t *testing.T) { CleanupGacils(t) }
