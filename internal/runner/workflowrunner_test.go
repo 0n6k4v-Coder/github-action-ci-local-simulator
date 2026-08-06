@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/0n6k4v-Coder/github-action-ci-local-simulator/internal/workflow"
 )
 
 type mockJobRunner struct {
+	mu        sync.Mutex
 	jobs      []string
 	runErrMap map[string]error
 	failJobs  map[string]bool
@@ -27,21 +29,28 @@ func newMockJobRunner() *mockJobRunner {
 }
 
 func (m *mockJobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string, workflowEnv map[string]string, workflowDefaults *workflow.Defaults, wf *workflow.Workflow, workspacePath string, needsCtx map[string]JobNeedsData) (*JobResult, error) {
+	m.mu.Lock()
 	if err, ok := m.runErrMap[jobID]; ok && err != nil {
+		m.mu.Unlock()
 		return nil, err
 	}
 	m.jobs = append(m.jobs, jobID)
-	if m.skipJobs[jobID] {
+	skip := m.skipJobs[jobID]
+	fail := m.failJobs[jobID]
+	outputs := m.outputs[jobID]
+	m.mu.Unlock()
+
+	if skip {
 		return &JobResult{JobID: jobID, Status: StatusSkipped, ExitCode: 0}, nil
 	}
-	if m.failJobs[jobID] {
+	if fail {
 		return &JobResult{JobID: jobID, Status: StatusFailure, ExitCode: 1}, nil
 	}
 	return &JobResult{
 		JobID:    jobID,
 		Status:   StatusSuccess,
 		ExitCode: 0,
-		Outputs:  m.outputs[jobID],
+		Outputs:  outputs,
 	}, nil
 }
 
