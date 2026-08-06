@@ -77,7 +77,7 @@ func newRunCmd() *cobra.Command {
 // executeWorkflows executes the loaded workflows using Docker.
 func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths []string) error {
 	// Create Docker client
-	cli, err := dockerx.NewClient(ctx)
+	cli, err := dockerx.CreateDockerClient()
 	if err != nil {
 		return fmt.Errorf("create docker client: %w\n  Hint: Check Docker daemon is running and network connectivity", err)
 	}
