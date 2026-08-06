@@ -135,7 +135,7 @@ func (sr *StepRunner) RunStep(ctx context.Context, step workflow.Step, jobEnv ma
 	if effectiveTimeout > 0 {
 		timeoutCtx, cancel := context.WithTimeout(ctx, effectiveTimeout)
 		defer cancel()
-		result, err = dockerx.ExecCommand(timeoutCtx, sr.cli, sr.containerID, workingDir, cmd, jobEnv)
+		result, err = execCommand(timeoutCtx, sr.cli, sr.containerID, workingDir, cmd, jobEnv)
 		if err != nil {
 			// Check if it's a timeout error
 			if timeoutCtx.Err() == context.DeadlineExceeded {
@@ -152,7 +152,7 @@ func (sr *StepRunner) RunStep(ctx context.Context, step workflow.Step, jobEnv ma
 			return nil, fmt.Errorf("execute step: %w\n  Hint: Check Docker container state and network connectivity", err)
 		}
 	} else {
-		result, err = dockerx.ExecCommand(ctx, sr.cli, sr.containerID, workingDir, cmd, jobEnv)
+		result, err = execCommand(ctx, sr.cli, sr.containerID, workingDir, cmd, jobEnv)
 		if err != nil {
 			return nil, fmt.Errorf("execute step: %w\n  Hint: Check Docker container state and network connectivity", err)
 		}
