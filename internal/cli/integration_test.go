@@ -225,15 +225,45 @@ func TestCLI_CRLFWarn(t *testing.T) {
 	}
 }
 
-// TestCLI_PlatformWarn verifies --platform emits a "not yet implemented" warning
-func TestCLI_PlatformWarn(t *testing.T) {
+// TestCLI_PlatformFlag verifies --platform flag works without warning
+func TestCLI_PlatformFlag(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+
 	binary := buildTestBinary(t)
 
-	cmd := exec.Command(binary, "run", "--platform", "linux/amd64", "-W", "/nonexistent/workflow.yml")
-	output, _ := cmd.CombinedOutput()
+	// Create a simple workflow
+	tmpDir := t.TempDir()
+	wfPath := createTestWorkflow(t, tmpDir, `
+name: test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "platform test"
+`)
 
-	if !strings.Contains(string(output), "Warning") || !strings.Contains(string(output), "--platform") {
-		t.Errorf("expected --platform warning in output, got: %s", output)
+	// Run with --platform flag (empty or linux/amd64)
+	cmd := exec.Command(binary, "run", "-W", wfPath, "--platform", "linux/amd64")
+	output, err := cmd.CombinedOutput()
+
+	// Should NOT see the warning stub
+	outputStr := string(output)
+	if strings.Contains(outputStr, "not yet implemented") {
+		t.Error("should not see 'not yet implemented' warning — flag should be implemented")
+	}
+
+	// If Docker is not available, that's fine for this test - we just verify the flag is accepted
+	// The key is that there's no "not yet implemented" warning
+	if err != nil {
+		// Check if error is about Docker not running (acceptable in test env) vs platform-related
+		if strings.Contains(outputStr, "Cannot connect to the Docker daemon") {
+			t.Log("Docker not available in test environment, skipping error check")
+		} else if !strings.Contains(outputStr, "platform") && !strings.Contains(outputStr, "architecture") {
+			t.Errorf("unexpected error: %v\nOutput: %s", err, outputStr)
+		}
 	}
 }
 

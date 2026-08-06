@@ -18,15 +18,17 @@ import (
 
 // JobRunner handles execution of jobs within Docker containers.
 type JobRunner struct {
-	cli     *client.Client
-	offline bool
+	cli      *client.Client
+	offline  bool
+	platform string
 }
 
 // NewJobRunner creates a new job runner.
-func NewJobRunner(cli *client.Client, offline bool) *JobRunner {
+func NewJobRunner(cli *client.Client, offline bool, platform string) *JobRunner {
 	return &JobRunner{
-		cli:     cli,
-		offline: offline,
+		cli:      cli,
+		offline:  offline,
+		platform: platform,
 	}
 }
 
@@ -69,7 +71,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 		pythonImage := fmt.Sprintf("python:%s-slim", pythonVersion)
 
 		// Try to pull/use python image
-		if err := dockerx.EnsureImage(ctx, jr.cli, pythonImage, jr.offline); err == nil {
+		if err := dockerx.EnsureImage(ctx, jr.cli, pythonImage, jr.offline, jr.platform); err == nil {
 			imageName = pythonImage
 			fmt.Printf("  ℹ️ Using %s for actions/setup-python\n", pythonImage)
 		} else {
@@ -78,7 +80,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 	}
 
 	// Ensure image exists
-	if err := dockerx.EnsureImage(ctx, jr.cli, imageName, jr.offline); err != nil {
+	if err := dockerx.EnsureImage(ctx, jr.cli, imageName, jr.offline, jr.platform); err != nil {
 		return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("ensure image %s: %w\n  Hint: Check image name and run 'docker login' if private", imageName, err)}, nil
 	}
 
@@ -144,7 +146,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 		for _, sName := range svcNames {
 			svc := job.Services[sName]
 
-			if err := dockerx.EnsureImage(ctx, jr.cli, svc.Image, jr.offline); err != nil {
+			if err := dockerx.EnsureImage(ctx, jr.cli, svc.Image, jr.offline, jr.platform); err != nil {
 				return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("ensure service image %s: %w\n  Hint: Check image name and run 'docker login' if private", svc.Image, err)}, nil
 			}
 
@@ -543,34 +545,34 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 	}
 
 	// Wait for container to finish
-		if err := dockerx.WaitContainer(ctx, jr.cli, containerID); err != nil {
-			if firstError == nil {
-				firstError = fmt.Errorf("wait container: %w", err)
-				exitCode = 1
-			}
+	if err := dockerx.WaitContainer(ctx, jr.cli, containerID); err != nil {
+		if firstError == nil {
+			firstError = fmt.Errorf("wait container: %w", err)
+			exitCode = 1
 		}
+	}
 
-		// Get container exit code
-		inspect, err := dockerx.InspectContainer(ctx, jr.cli, containerID)
-		if err == nil && inspect.State != nil && inspect.State.ExitCode != 0 {
-			if firstError == nil {
-				exitCode = inspect.State.ExitCode
-				firstError = fmt.Errorf("container exited with code %d", inspect.State.ExitCode)
-			}
+	// Get container exit code
+	inspect, err := dockerx.InspectContainer(ctx, jr.cli, containerID)
+	if err == nil && inspect.State != nil && inspect.State.ExitCode != 0 {
+		if firstError == nil {
+			exitCode = inspect.State.ExitCode
+			firstError = fmt.Errorf("container exited with code %d", inspect.State.ExitCode)
 		}
+	}
 
-		status := StatusSuccess
-		if exitCode != 0 {
-			status = StatusFailure
-		}
+	status := StatusSuccess
+	if exitCode != 0 {
+		status = StatusFailure
+	}
 
-		return &JobResult{
-			JobID:    jobID,
-			ExitCode: exitCode,
-			Status:   status,
-			Error:    firstError,
-			Steps:    stepResults,
-		}, nil
+	return &JobResult{
+		JobID:    jobID,
+		ExitCode: exitCode,
+		Status:   status,
+		Error:    firstError,
+		Steps:    stepResults,
+	}, nil
 }
 
 // evaluateIfConditionStatic evaluates an if condition without running a step.
@@ -629,18 +631,18 @@ func generateShortID() string {
 // buildGitHubContext builds the GitHub context environment variables.
 func buildGitHubContext(jobID, jobInstanceID string) map[string]string {
 	return map[string]string{
-		"GITHUB_WORKFLOW":      "workflow",
-		"GITHUB_JOB":           jobID,
-		"GITHUB_RUN_ID":        jobInstanceID,
-		"GITHUB_RUN_NUMBER":    "1",
-		"GITHUB_RUN_ATTEMPT":   "1",
-		"GITHUB_REPOSITORY":    "local/repo",
-		"GITHUB_REF":           "refs/heads/main",
-		"GITHUB_REF_NAME":      "main",
-		"GITHUB_REF_TYPE":      "branch",
-		"GITHUB_SHA":           "0000000000000000000000000000000000000000",
-		"GITHUB_ACTOR":         "gacils",
-		"GITHUB_WORKSPACE":     "/github/workspace",
+		"GITHUB_WORKFLOW":    "workflow",
+		"GITHUB_JOB":         jobID,
+		"GITHUB_RUN_ID":      jobInstanceID,
+		"GITHUB_RUN_NUMBER":  "1",
+		"GITHUB_RUN_ATTEMPT": "1",
+		"GITHUB_REPOSITORY":  "local/repo",
+		"GITHUB_REF":         "refs/heads/main",
+		"GITHUB_REF_NAME":    "main",
+		"GITHUB_REF_TYPE":    "branch",
+		"GITHUB_SHA":         "0000000000000000000000000000000000000000",
+		"GITHUB_ACTOR":       "gacils",
+		"GITHUB_WORKSPACE":   "/github/workspace",
 	}
 }
 

@@ -26,9 +26,6 @@ func newRunCmd() *cobra.Command {
 			if flags.CRLF != "convert" {
 				fmt.Fprintf(os.Stderr, "Warning: --crlf=%s is not yet implemented; defaulting to 'convert' behavior.\n", flags.CRLF)
 			}
-			if flags.Platform != "" {
-				fmt.Fprintf(os.Stderr, "Warning: --platform is not yet implemented and will be ignored.\n")
-			}
 
 			// Use default workflow directory if not specified
 			workflowPath := flags.Workflow
@@ -74,7 +71,7 @@ func newRunCmd() *cobra.Command {
 			}
 
 			// Execute workflows
-			return executeWorkflows(cmd.Context(), workflows, paths, flags.Job, flags.Offline, flags.Parallel)
+			return executeWorkflows(cmd.Context(), workflows, paths, flags.Job, flags.Offline, flags.Parallel, flags.Platform)
 		},
 	}
 
@@ -84,7 +81,7 @@ func newRunCmd() *cobra.Command {
 }
 
 // executeWorkflows executes the loaded workflows using Docker.
-func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths []string, jobFilter string, offline bool, parallel int) error {
+func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths []string, jobFilter string, offline bool, parallel int, platform string) error {
 	// Create Docker client
 	cli, err := dockerx.CreateDockerClient()
 	if err != nil {
@@ -93,7 +90,7 @@ func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths
 	defer cli.Close()
 
 	// Create job runner and workflow runner
-	jobRunner := runner.NewJobRunner(cli, offline)
+	jobRunner := runner.NewJobRunner(cli, offline, platform)
 	workflowRunner := runner.NewWorkflowRunner(jobRunner, offline)
 
 	// Process each workflow
