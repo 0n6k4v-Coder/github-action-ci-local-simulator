@@ -66,12 +66,12 @@ done
 | `Workflow` | YES | YES |
 | `Job` | YES | YES |
 | `DryRun` | YES | YES |
-| `Parallel` | NO (dead code) | YES |
-| `CRLF` | NO (dead code) | YES |
-| `Platform` | NO (dead code) | YES |
-| `Offline` | NO (dead code) | YES |
+| `Parallel` | YES (warns) | YES |
+| `CRLF` | YES (warns) | YES |
+| `Platform` | YES (warns) | YES |
+| `Offline` | YES (warns) | YES |
 
-> **Action required before next release:** implement or remove the 4 dead-code flags
+> **Note:** Parallel/CRLF/Platform/Offline now warn users when used. Full implementation is a future task.
 > (`Parallel`, `CRLF`, `Platform`, `Offline`). See [flags.go](internal/cli/flags.go).
 
 ## 7. Documentation

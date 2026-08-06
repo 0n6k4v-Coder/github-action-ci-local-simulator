@@ -21,6 +21,21 @@ func newRunCmd() *cobra.Command {
 		Long:         "Run GitHub Actions workflows locally using Docker.",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Warn about flags that are accepted but not yet implemented,
+			// so users get actionable feedback instead of silent no-ops.
+			if flags.Parallel != 0 {
+				fmt.Fprintf(os.Stderr, "Warning: --parallel is not yet implemented and will be ignored.\n")
+			}
+			if flags.CRLF != "convert" {
+				fmt.Fprintf(os.Stderr, "Warning: --crlf=%s is not yet implemented; defaulting to 'convert' behavior.\n", flags.CRLF)
+			}
+			if flags.Platform != "" {
+				fmt.Fprintf(os.Stderr, "Warning: --platform is not yet implemented and will be ignored.\n")
+			}
+			if flags.Offline {
+				fmt.Fprintf(os.Stderr, "Warning: --offline is not yet implemented; images will still be pulled if not cached locally.\n")
+			}
+
 			// Use default workflow directory if not specified
 			workflowPath := flags.Workflow
 			if workflowPath == "" {
@@ -39,22 +54,22 @@ func newRunCmd() *cobra.Command {
 			}
 
 			// Process each workflow
-					for i, wf := range workflows {
-						// Normalize
-						if err := workflow.Normalize(wf); err != nil {
-							return fmt.Errorf("normalize workflow %s: %w", paths[i], err)
-						}
+			for i, wf := range workflows {
+				// Normalize
+				if err := workflow.Normalize(wf); err != nil {
+					return fmt.Errorf("normalize workflow %s: %w", paths[i], err)
+				}
 
-						// Validate
-						if err := workflow.Validate(wf); err != nil {
-							// Check if it's a validation error with exit code
-							if verr, ok := err.(*workflow.ValidationErrorWithCode); ok {
-								fmt.Fprintf(os.Stderr, "Error: %v\n", verr)
-								os.Exit(verr.ExitCode)
-							}
-							return fmt.Errorf("validate workflow %s: %w", paths[i], err)
-						}
+				// Validate
+				if err := workflow.Validate(wf); err != nil {
+					// Check if it's a validation error with exit code
+					if verr, ok := err.(*workflow.ValidationErrorWithCode); ok {
+						fmt.Fprintf(os.Stderr, "Error: %v\n", verr)
+						os.Exit(verr.ExitCode)
 					}
+					return fmt.Errorf("validate workflow %s: %w", paths[i], err)
+				}
+			}
 
 			// Generate dry-run plan
 			planSet := workflow.GenerateDryRunPlanSet(workflows, paths)

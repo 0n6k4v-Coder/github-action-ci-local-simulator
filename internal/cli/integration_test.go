@@ -163,3 +163,52 @@ func TestCLI_ParallelFlagInHelp(t *testing.T) {
 		t.Errorf("expected parallel flag description in help")
 	}
 }
+
+// TestCLI_ParallelWarn verifies --parallel emits a "not yet implemented" warning
+func TestCLI_ParallelWarn(t *testing.T) {
+	binary := buildTestBinary(t)
+
+	// Point at a nonexistent path so the run exits early after flag processing
+	cmd := exec.Command(binary, "run", "--parallel", "4", "-W", "/nonexistent/workflow.yml")
+	output, _ := cmd.CombinedOutput()
+
+	if !strings.Contains(string(output), "Warning") || !strings.Contains(string(output), "--parallel") {
+		t.Errorf("expected --parallel warning in output, got: %s", output)
+	}
+}
+
+// TestCLI_CRLFWarn verifies --crlf emits a "not yet implemented" warning
+func TestCLI_CRLFWarn(t *testing.T) {
+	binary := buildTestBinary(t)
+
+	cmd := exec.Command(binary, "run", "--crlf", "preserve", "-W", "/nonexistent/workflow.yml")
+	output, _ := cmd.CombinedOutput()
+
+	if !strings.Contains(string(output), "Warning") || !strings.Contains(string(output), "--crlf") {
+		t.Errorf("expected --crlf warning in output, got: %s", output)
+	}
+}
+
+// TestCLI_PlatformWarn verifies --platform emits a "not yet implemented" warning
+func TestCLI_PlatformWarn(t *testing.T) {
+	binary := buildTestBinary(t)
+
+	cmd := exec.Command(binary, "run", "--platform", "linux/amd64", "-W", "/nonexistent/workflow.yml")
+	output, _ := cmd.CombinedOutput()
+
+	if !strings.Contains(string(output), "Warning") || !strings.Contains(string(output), "--platform") {
+		t.Errorf("expected --platform warning in output, got: %s", output)
+	}
+}
+
+// TestCLI_OfflineWarn verifies --offline emits a "not yet implemented" warning
+func TestCLI_OfflineWarn(t *testing.T) {
+	binary := buildTestBinary(t)
+
+	cmd := exec.Command(binary, "run", "--offline", "-W", "/nonexistent/workflow.yml")
+	output, _ := cmd.CombinedOutput()
+
+	if !strings.Contains(string(output), "Warning") || !strings.Contains(string(output), "--offline") {
+		t.Errorf("expected --offline warning in output, got: %s", output)
+	}
+}
