@@ -63,6 +63,71 @@ Download the pre-compiled binary for your operating system and architecture from
 - [Docker Engine](https://docs.docker.com/get-docker/) running locally.
 - [Go 1.22+](https://golang.org/dl/) (only required if building from source).
 
+## 🐧 WSL2 + Docker Desktop Support
+
+gacils v1.3.1+ fully supports WSL2 with Docker Desktop integration.
+
+### Installation on WSL2
+
+```bash
+# Install Go (if not already installed)
+sudo apt-get update
+sudo apt-get install -y golang-go
+
+# Install gacils
+go install github.com/0n6k4v-Coder/github-action-ci-local-simulator/cmd/gacils@latest
+
+# Verify installation
+gacils --version
+```
+
+### Running on WSL2
+
+gacils automatically detects the correct Docker socket path on WSL2.
+No manual configuration required:
+
+```bash
+cd /path/to/your/repo
+gacils run -W .github/workflows/ci.yml
+```
+
+### How It Works
+
+gacils uses Docker SDK's `FromEnv` pattern which:
+- Reads `DOCKER_HOST` environment variable if set
+- Falls back to Docker context inspection
+- Automatically detects WSL2 socket paths:
+  - `~/.docker/desktop/docker.sock`
+  - `/mnt/wsl/docker-desktop/docker.sock`
+- Also works with Linux native Docker (`/var/run/docker.sock`)
+
+### Troubleshooting
+
+If you encounter Docker connection issues on WSL2:
+
+1. Verify Docker Desktop is running and WSL2 integration is enabled
+2. Check Docker context:
+   ```bash
+   docker context ls
+   ```
+3. Verify socket exists:
+   ```bash
+   ls -la ~/.docker/desktop/docker.sock
+   ```
+4. If needed, manually set DOCKER_HOST:
+   ```bash
+   export DOCKER_HOST="unix://$(docker context inspect --format '{{.Endpoints.docker.Host}}' | sed 's|unix://||')"
+   ```
+
+### Platform Support
+
+| Platform | Status | Notes |
+|----------|--------|-------|
+| Linux (native Docker) | ✅ Full support | Default socket: `/var/run/docker.sock` |
+| WSL2 + Docker Desktop | ✅ Full support | Auto-detects WSL2 socket paths |
+| macOS + Docker Desktop | ⚠️ Untested | Should work with `/var/run/docker.sock` |
+| Windows (native) | ❌ Not supported | Requires WSL2 |
+
 ## 🎯 Quick Start
 
 1. **Navigate to your repository**:
