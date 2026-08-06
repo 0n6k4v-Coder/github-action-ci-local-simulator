@@ -52,7 +52,8 @@ func ExecuteCache(ctx context.Context, cli *client.Client, containerID, workingD
 	if cacheExists {
 		// Restore cache to container
 		if cli != nil && containerID != "" {
-			if err := dockerx.CopyHostToContainer(ctx, cli, containerID, hostCachePath, containerPath); err != nil {
+			parentDir := filepath.Dir(containerPath)
+			if err := dockerx.CopyHostToContainer(ctx, cli, containerID, hostCachePath, parentDir); err != nil {
 				return nil, fmt.Errorf("restore cache failed: %w", err)
 			}
 		}
