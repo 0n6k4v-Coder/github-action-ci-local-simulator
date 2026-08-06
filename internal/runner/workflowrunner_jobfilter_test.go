@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/0n6k4v-Coder/github-action-ci-local-simulator/internal/workflow"
@@ -119,10 +120,13 @@ func TestRunWorkflow_JobFilter_NonExistentJob(t *testing.T) {
 // mockJobRunnerForFilter tracks which jobs are executed
 type mockJobRunnerForFilter struct {
 	executedJobs []string
+	mu           sync.Mutex
 }
 
 func (m *mockJobRunnerForFilter) RunJob(ctx context.Context, job workflow.Job, jobID string, workflowEnv map[string]string, workflowDefaults *workflow.Defaults, wf *workflow.Workflow, workspacePath string, needsCtx map[string]JobNeedsData) (*JobResult, error) {
+	m.mu.Lock()
 	m.executedJobs = append(m.executedJobs, jobID)
+	m.mu.Unlock()
 	return &JobResult{JobID: jobID, Status: StatusSuccess}, nil
 }
 
