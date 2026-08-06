@@ -201,14 +201,41 @@ func TestCLI_PlatformWarn(t *testing.T) {
 	}
 }
 
-// TestCLI_OfflineWarn verifies --offline emits a "not yet implemented" warning
-func TestCLI_OfflineWarn(t *testing.T) {
+// TestCLI_OfflineFlag verifies --offline flag works without warning
+func TestCLI_OfflineFlag(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+
 	binary := buildTestBinary(t)
 
-	cmd := exec.Command(binary, "run", "--offline", "-W", "/nonexistent/workflow.yml")
-	output, _ := cmd.CombinedOutput()
+	// Create a minimal workflow
+	tmpDir := t.TempDir()
+	wfPath := createTestWorkflow(t, tmpDir, `
+name: test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "offline test"
+`)
 
-	if !strings.Contains(string(output), "Warning") || !strings.Contains(string(output), "--offline") {
-		t.Errorf("expected --offline warning in output, got: %s", output)
+	// Run with --offline flag
+	cmd := exec.Command(binary, "run", "-W", wfPath, "--offline")
+	output, err := cmd.CombinedOutput()
+
+	// Should either succeed (if image cached) or fail with offline error
+	outputStr := string(output)
+	if err != nil {
+		// If it fails, error should mention offline or not found
+		if !strings.Contains(outputStr, "offline") && !strings.Contains(outputStr, "not found") {
+			t.Errorf("expected offline-related error, got: %s", outputStr)
+		}
+	}
+
+	// Should NOT see the warning stub
+	if strings.Contains(outputStr, "not yet implemented") {
+		t.Error("should not see 'not yet implemented' warning — flag should be implemented")
 	}
 }

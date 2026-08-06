@@ -408,7 +408,7 @@ func TestRunWorkflow_JobIfCondition(t *testing.T) {
 }
 
 func TestNewWorkflowRunner(t *testing.T) {
-	wr := NewWorkflowRunner(nil)
+	wr := NewWorkflowRunner(nil, false)
 	if wr == nil {
 		t.Error("NewWorkflowRunner returned nil")
 	}

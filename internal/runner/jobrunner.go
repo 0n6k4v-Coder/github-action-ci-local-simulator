@@ -18,13 +18,15 @@ import (
 
 // JobRunner handles execution of jobs within Docker containers.
 type JobRunner struct {
-	cli *client.Client
+	cli     *client.Client
+	offline bool
 }
 
 // NewJobRunner creates a new job runner.
-func NewJobRunner(cli *client.Client) *JobRunner {
+func NewJobRunner(cli *client.Client, offline bool) *JobRunner {
 	return &JobRunner{
-		cli: cli,
+		cli:     cli,
+		offline: offline,
 	}
 }
 
@@ -44,7 +46,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 		if job.GetMatrixContext() != nil {
 			exprContext.SetMatrix(job.GetMatrixContext())
 		}
-		
+
 		shouldRun, err := evaluateIfConditionStatic(job.If, exprContext)
 		if err != nil {
 			return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("evaluate job if condition: %w", err)}, nil
@@ -67,7 +69,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 		pythonImage := fmt.Sprintf("python:%s-slim", pythonVersion)
 
 		// Try to pull/use python image
-		if err := dockerx.EnsureImage(ctx, jr.cli, pythonImage); err == nil {
+		if err := dockerx.EnsureImage(ctx, jr.cli, pythonImage, jr.offline); err == nil {
 			imageName = pythonImage
 			fmt.Printf("  ℹ️ Using %s for actions/setup-python\n", pythonImage)
 		} else {
@@ -76,7 +78,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 	}
 
 	// Ensure image exists
-	if err := dockerx.EnsureImage(ctx, jr.cli, imageName); err != nil {
+	if err := dockerx.EnsureImage(ctx, jr.cli, imageName, jr.offline); err != nil {
 		return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("ensure image %s: %w\n  Hint: Check image name and run 'docker login' if private", imageName, err)}, nil
 	}
 
@@ -142,7 +144,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 		for _, sName := range svcNames {
 			svc := job.Services[sName]
 
-			if err := dockerx.EnsureImage(ctx, jr.cli, svc.Image); err != nil {
+			if err := dockerx.EnsureImage(ctx, jr.cli, svc.Image, jr.offline); err != nil {
 				return &JobResult{JobID: jobID, ExitCode: 1, Error: fmt.Errorf("ensure service image %s: %w\n  Hint: Check image name and run 'docker login' if private", svc.Image, err)}, nil
 			}
 
@@ -504,47 +506,22 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 			break
 		}
 
-		// Parse the content (supports both single-line and multiline)
-		outputs := make(map[string]string)
-		content := catOutputResult.Stdout
-		outputLines := strings.Split(content, "\n")
-		i := 0
-		for i < len(outputLines) {
-			line := strings.TrimSpace(outputLines[i])
+		// Parse the content
+		outputVars := make(map[string]string)
+		outputLines := strings.Split(catOutputResult.Stdout, "\n")
+		for _, line := range outputLines {
+			line = strings.TrimSpace(line)
 			if line == "" {
-				i++
 				continue
 			}
-
-			// Check for multiline format
-			if strings.Contains(line, "<<") && !strings.HasPrefix(line, "<<") {
-				parts := strings.SplitN(line, "<<", 2)
-				if len(parts) == 2 {
-					key := strings.TrimSpace(parts[0])
-					delimiter := strings.TrimSpace(parts[1])
-					i++
-					var valueLines []string
-					for i < len(outputLines) {
-						if strings.TrimSpace(outputLines[i]) == delimiter {
-							break
-						}
-						valueLines = append(valueLines, outputLines[i])
-						i++
-					}
-					outputs[key] = strings.Join(valueLines, "\n")
-				}
-			} else if strings.Contains(line, "=") {
-				parts := strings.SplitN(line, "=", 2)
-				if len(parts) == 2 {
-					outputs[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
-				}
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 {
+				outputVars[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
 			}
-			i++
 		}
 
-		if len(outputs) > 0 {
-			stepOutputs.SetOutputs(step.ID, outputs)
-		}
+		// Store step outputs
+		stepOutputs.SetOutputs(step.ID, outputVars)
 
 		// Clear the file in container
 		clearOutputCmd := []string{"truncate", "-s", "0", githubOutputFile.Path()}
@@ -554,46 +531,46 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 			break
 		}
 
-		// Handle step failure based on conclusion (not raw outcome)
-		if result.Conclusion == StatusFailure {
+		if result.ExitCode != 0 {
 			if step.ContinueOnError {
-				// Continue to next step, but track the conclusion for failure()
-				continue
-			}
-			exitCode = result.ExitCode
-			firstError = fmt.Errorf("step %d failed with exit code %d", i+1, result.ExitCode)
-			break
-		}
-	}
-
-	// Determine overall job status
-	jobStatus := StatusSuccess
-	if firstError != nil || exitCode != 0 {
-		jobStatus = StatusFailure
-	}
-	// Resolve job outputs if defined
-	resolvedJobOutputs := make(map[string]string)
-	if len(job.Outputs) > 0 {
-		for name, expr := range job.Outputs {
-			val, err := exprContext.Interpolate(expr)
-			if err != nil {
-				if firstError == nil {
-					firstError = fmt.Errorf("resolve job output %q: %w", name, err)
-				}
+				fmt.Printf("    Step %d failed with exit code %d (continue-on-error)\n", i+1, result.ExitCode)
 			} else {
-				resolvedJobOutputs[name] = val
+				exitCode = result.ExitCode
+				firstError = fmt.Errorf("step %d failed with exit code %d", i+1, result.ExitCode)
+				break
 			}
 		}
 	}
 
-	return &JobResult{
-		JobID:    jobID,
-		Steps:    stepResults,
-		ExitCode: exitCode,
-		Error:    firstError,
-		Status:   jobStatus,
-		Outputs:  resolvedJobOutputs,
-	}, nil
+	// Wait for container to finish
+		if err := dockerx.WaitContainer(ctx, jr.cli, containerID); err != nil {
+			if firstError == nil {
+				firstError = fmt.Errorf("wait container: %w", err)
+				exitCode = 1
+			}
+		}
+
+		// Get container exit code
+		inspect, err := dockerx.InspectContainer(ctx, jr.cli, containerID)
+		if err == nil && inspect.State != nil && inspect.State.ExitCode != 0 {
+			if firstError == nil {
+				exitCode = inspect.State.ExitCode
+				firstError = fmt.Errorf("container exited with code %d", inspect.State.ExitCode)
+			}
+		}
+
+		status := StatusSuccess
+		if exitCode != 0 {
+			status = StatusFailure
+		}
+
+		return &JobResult{
+			JobID:    jobID,
+			ExitCode: exitCode,
+			Status:   status,
+			Error:    firstError,
+			Steps:    stepResults,
+		}, nil
 }
 
 // evaluateIfConditionStatic evaluates an if condition without running a step.

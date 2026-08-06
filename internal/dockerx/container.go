@@ -86,3 +86,24 @@ func RemoveContainer(ctx context.Context, cli *client.Client, containerID string
 	}
 	return nil
 }
+
+// WaitContainer waits for a container to finish and returns its exit code.
+func WaitContainer(ctx context.Context, cli *client.Client, containerID string) error {
+	statusCh, errCh := cli.ContainerWait(ctx, containerID, container.WaitConditionNotRunning)
+	select {
+	case err := <-errCh:
+		if err != nil {
+			return fmt.Errorf("wait container: %w", err)
+		}
+	case status := <-statusCh:
+		if status.StatusCode != 0 {
+			return fmt.Errorf("container exited with code %d", status.StatusCode)
+		}
+	}
+	return nil
+}
+
+// InspectContainer inspects a container and returns its details.
+func InspectContainer(ctx context.Context, cli *client.Client, containerID string) (container.InspectResponse, error) {
+	return cli.ContainerInspect(ctx, containerID)
+}

@@ -25,8 +25,8 @@ func ResolveImage(runsOn string) (string, error) {
 	return img, nil
 }
 
-// EnsureImage checks if an image exists locally, and pulls it if not.
-func EnsureImage(ctx context.Context, cli *client.Client, imageName string) error {
+// EnsureImage checks if an image exists locally, and pulls it if not (unless offline mode).
+func EnsureImage(ctx context.Context, cli *client.Client, imageName string, offline bool) error {
 	// Check if image exists locally
 	images, err := cli.ImageList(ctx, image.ListOptions{})
 	if err != nil {
@@ -39,6 +39,11 @@ func EnsureImage(ctx context.Context, cli *client.Client, imageName string) erro
 				return nil // Image already exists
 			}
 		}
+	}
+
+	// Image not found locally
+	if offline {
+		return fmt.Errorf("image %q not found locally and --offline mode prevents pulling", imageName)
 	}
 
 	// Image not found, pull it

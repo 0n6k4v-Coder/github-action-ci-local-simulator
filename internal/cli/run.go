@@ -32,9 +32,6 @@ func newRunCmd() *cobra.Command {
 			if flags.Platform != "" {
 				fmt.Fprintf(os.Stderr, "Warning: --platform is not yet implemented and will be ignored.\n")
 			}
-			if flags.Offline {
-				fmt.Fprintf(os.Stderr, "Warning: --offline is not yet implemented; images will still be pulled if not cached locally.\n")
-			}
 
 			// Use default workflow directory if not specified
 			workflowPath := flags.Workflow
@@ -80,7 +77,7 @@ func newRunCmd() *cobra.Command {
 			}
 
 			// Execute workflows
-			return executeWorkflows(cmd.Context(), workflows, paths, flags.Job)
+		return executeWorkflows(cmd.Context(), workflows, paths, flags.Job, flags.Offline)
 		},
 	}
 
@@ -90,7 +87,7 @@ func newRunCmd() *cobra.Command {
 }
 
 // executeWorkflows executes the loaded workflows using Docker.
-func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths []string, jobFilter string) error {
+func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths []string, jobFilter string, offline bool) error {
 	// Create Docker client
 	cli, err := dockerx.CreateDockerClient()
 	if err != nil {
@@ -99,8 +96,8 @@ func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths
 	defer cli.Close()
 
 	// Create job runner and workflow runner
-	jobRunner := runner.NewJobRunner(cli)
-	workflowRunner := runner.NewWorkflowRunner(jobRunner)
+	jobRunner := runner.NewJobRunner(cli, offline)
+	workflowRunner := runner.NewWorkflowRunner(jobRunner, offline)
 
 	// Process each workflow
 	for i, wf := range workflows {

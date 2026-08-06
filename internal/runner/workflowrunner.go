@@ -18,12 +18,14 @@ type jobRunnerInterface interface {
 // WorkflowRunner handles execution of workflows including job dependency ordering.
 type WorkflowRunner struct {
 	jobRunner jobRunnerInterface
+	offline   bool
 }
 
 // NewWorkflowRunner creates a new WorkflowRunner.
-func NewWorkflowRunner(jobRunner *JobRunner) *WorkflowRunner {
+func NewWorkflowRunner(jobRunner *JobRunner, offline bool) *WorkflowRunner {
 	return &WorkflowRunner{
 		jobRunner: jobRunner,
+		offline:   offline,
 	}
 }
 
@@ -31,6 +33,7 @@ func NewWorkflowRunner(jobRunner *JobRunner) *WorkflowRunner {
 func newWorkflowRunnerWithInterface(jobRunner jobRunnerInterface) *WorkflowRunner {
 	return &WorkflowRunner{
 		jobRunner: jobRunner,
+		offline:   false,
 	}
 }
 
