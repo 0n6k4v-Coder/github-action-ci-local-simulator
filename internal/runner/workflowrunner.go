@@ -41,6 +41,7 @@ func (wr *WorkflowRunner) RunWorkflow(
 	expandedWf *workflow.Workflow,
 	workspacePath string,
 	workflowEnv map[string]string,
+	jobFilter string,
 ) (*WorkflowResult, error) {
 	// 1. Validate needs graph
 	if err := ValidateNeeds(wf); err != nil {
@@ -92,6 +93,20 @@ func (wr *WorkflowRunner) RunWorkflow(
 		}
 	}
 
+	// Validate job filter
+	if jobFilter != "" {
+		found := false
+		for jobID := range wf.Jobs {
+			if jobID == jobFilter {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("job %q not found in workflow", jobFilter)
+		}
+	}
+
 	var jobExecutionOrder []string
 	workflowFailed := false
 
@@ -101,10 +116,23 @@ func (wr *WorkflowRunner) RunWorkflow(
 	var runErr error
 	var errOnce sync.Once
 	var wg sync.WaitGroup
-	wg.Add(len(wf.Jobs))
+	
+	// Count jobs that will actually run (respecting job filter)
+	jobsToRun := 0
+	for id := range wf.Jobs {
+		if jobFilter == "" || id == jobFilter {
+			jobsToRun++
+		}
+	}
+	wg.Add(jobsToRun)
 
 	var launchJob func(origJobID string)
 	launchJob = func(origJobID string) {
+		// Apply job filter early - skip if not matching
+		if jobFilter != "" && origJobID != jobFilter {
+			return
+		}
+
 		go func() {
 			defer wg.Done()
 
@@ -240,6 +268,10 @@ func (wr *WorkflowRunner) RunWorkflow(
 	var initialJobs []string
 	for _, id := range jobIDs {
 		if inDegree[id] == 0 {
+			// Apply job filter if specified
+			if jobFilter != "" && id != jobFilter {
+				continue
+			}
 			initialJobs = append(initialJobs, id)
 		}
 	}

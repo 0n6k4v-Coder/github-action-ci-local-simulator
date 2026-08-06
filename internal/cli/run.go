@@ -65,7 +65,7 @@ func newRunCmd() *cobra.Command {
 			}
 
 			// Execute workflows
-			return executeWorkflows(cmd.Context(), workflows, paths)
+			return executeWorkflows(cmd.Context(), workflows, paths, flags.Job)
 		},
 	}
 
@@ -75,7 +75,7 @@ func newRunCmd() *cobra.Command {
 }
 
 // executeWorkflows executes the loaded workflows using Docker.
-func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths []string) error {
+func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths []string, jobFilter string) error {
 	// Create Docker client
 	cli, err := dockerx.CreateDockerClient()
 	if err != nil {
@@ -123,7 +123,7 @@ func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths
 			}
 		}
 
-		result, err := workflowRunner.RunWorkflow(ctx, wf, expandedWf, jobWorkspacePath, workflowEnv)
+		result, err := workflowRunner.RunWorkflow(ctx, wf, expandedWf, jobWorkspacePath, workflowEnv, jobFilter)
 		if err != nil {
 			if verr, ok := err.(*workflow.ValidationErrorWithCode); ok {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", verr)
