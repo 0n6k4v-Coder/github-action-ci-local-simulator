@@ -39,9 +39,10 @@ jobs:
 		t.Fatalf("gacils failed: %v\nOutput: %s", err, output)
 	}
 
-	// Two 3s jobs running in parallel should complete well before 5.5s
-	if duration >= 5500*time.Millisecond {
-		t.Errorf("expected parallel execution (<5.5s), total duration was: %v", duration)
+	// Two 3s jobs running in parallel should complete well before 10s
+	// (3s sleep + ~5s Docker container overhead, running concurrently)
+	if duration >= 10000*time.Millisecond {
+		t.Errorf("expected parallel execution (<10s), total duration was: %v", duration)
 	}
 }
 

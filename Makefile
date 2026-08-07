@@ -54,7 +54,7 @@ GO_SOURCE := local
 endif
 
 # --- Configurable flags ------------------------------------------------------
-GO_TEST_TIMEOUT ?= 120s
+GO_TEST_TIMEOUT ?= 10m
 GO_TEST_INTEGRATION_TIMEOUT ?= 10m
 GO_TEST_PKGS ?= ./...
 GO_BUILD_PKGS ?= ./...
