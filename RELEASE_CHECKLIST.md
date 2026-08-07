@@ -81,7 +81,88 @@ done
 - [ ] Breaking changes documented (if any)
 - [ ] Flag descriptions in `--help` are accurate and up to date
 
-## 8. Version & Tag
+## 8. Error Handling
+
+### Pre-Release Validation
+
+Run the validation script before creating any release tag:
+
+```bash
+./scripts/validate-release.sh
+```
+
+This script checks:
+- No stubs remaining in CLI code
+- All tests pass
+- Build succeeds
+- Binary works
+- CHANGELOG.md updated
+- README.md updated
+- No race conditions
+
+### Error Handling Guidelines
+
+1. **All stubs must return errors, not nil**
+   ```go
+   // WRONG:
+   RunE: func(cmd *cobra.Command, args []string) error {
+       fmt.Println("not implemented")
+       return nil  // User sees exit code 0
+   }
+
+   // CORRECT:
+   RunE: func(cmd *cobra.Command, args []string) error {
+       return fmt.Errorf("not implemented\nHint: ...")
+   }
+   ```
+
+2. **All errors must have hints**
+   ```go
+   return fmt.Errorf("operation failed\n" +
+       "Hint: Try running 'gacils clean --dry-run' first")
+   ```
+
+3. **Use appropriate exit codes**
+   - 0: Success
+   - 1: General error
+   - 2: User input error
+   - 3: System error
+   - 4: External dependency error
+
+### Release Process
+
+1. **Implement features**
+2. **Run validation script**
+   ```bash
+   ./scripts/validate-release.sh
+   ```
+3. **If validation passes, create tag**
+   ```bash
+   git tag -a vX.Y.Z -m "Release vX.Y.Z: ..."
+   ```
+4. **Push tag**
+   ```bash
+   git push origin vX.Y.Z
+   ```
+5. **Verify on GitHub**
+   ```bash
+   git ls-remote origin refs/tags/vX.Y.Z
+   ```
+
+### Lessons Learned
+
+**v1.4.0 Issue:**
+- v1.4.0 was tagged before `gacils clean` was implemented
+- Users installing v1.4.0 saw "not implemented yet" errors
+- **Solution:** Created v1.4.1 with the complete feature set
+- **Prevention:** Added `scripts/validate-release.sh` to catch stubs before tagging
+
+**Key Takeaway:**
+- Always run `./scripts/validate-release.sh` before creating a release tag
+- Never tag a release until validation passes
+- Separate "implement" and "release" phases
+
+## 9. Version & Tag
 
 - [ ] Correct semantic version (`major.minor.patch`) per semver.org
 - [ ] Tag message is descriptive

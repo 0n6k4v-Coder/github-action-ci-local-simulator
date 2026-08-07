@@ -28,8 +28,9 @@ func newListCmd() *cobra.Command {
 		Short: "List workflows found in .github/workflows",
 		Long:  "List all workflow files found in the .github/workflows directory.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("gacils list is not implemented yet")
-			return nil
+			return fmt.Errorf("gacils list is not implemented yet\n" +
+				"Hint: This feature is planned for a future release.\n" +
+				"Check https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/issues for updates.")
 		},
 	}
 
@@ -45,8 +46,9 @@ func newInitCmd() *cobra.Command {
 		Short: "Initialize a new workflow file",
 		Long:  "Initialize a new GitHub Actions workflow file in .github/workflows.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("gacils init is not implemented yet")
-			return nil
+			return fmt.Errorf("gacils init is not implemented yet\n" +
+				"Hint: This feature is planned for a future release.\n" +
+				"Check https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/issues for updates.")
 		},
 	}
 
@@ -63,8 +65,9 @@ func newDoctorCmd() *cobra.Command {
 		Short: "Check local environment readiness",
 		Long:  "Check local environment readiness for running workflows (Docker, Git, etc.).",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("gacils doctor is not implemented yet")
-			return nil
+			return fmt.Errorf("gacils doctor is not implemented yet\n" +
+				"Hint: This feature is planned for a future release.\n" +
+				"Check https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/issues for updates.")
 		},
 	}
 
@@ -80,8 +83,9 @@ func newSetupCmd() *cobra.Command {
 		Short: "Setup local caches, for example Python tool caches",
 		Long:  "Setup local caches, for example Python tool caches.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("gacils setup is not implemented yet")
-			return nil
+			return fmt.Errorf("gacils setup is not implemented yet\n" +
+				"Hint: This feature is planned for a future release.\n" +
+				"Check https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/issues for updates.")
 		},
 	}
 
@@ -97,8 +101,9 @@ func newSetupPythonCmd() *cobra.Command {
 		Long:  "Setup Python tool cache for the specified version.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("gacils setup python is not implemented yet")
-			return nil
+			return fmt.Errorf("gacils setup python is not implemented yet\n" +
+				"Hint: This feature is planned for a future release.\n" +
+				"Check https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/issues for updates.")
 		},
 	}
 
