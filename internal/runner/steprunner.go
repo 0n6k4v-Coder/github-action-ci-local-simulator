@@ -12,20 +12,40 @@ import (
 	"github.com/docker/docker/client"
 )
 
+// NormalizeLineEndings handles line ending conversion based on mode.
+// Modes: "convert" (CRLF→LF), "preserve" (keep as-is), "error" (reject CRLF)
+func NormalizeLineEndings(content string, mode string) (string, error) {
+	switch mode {
+	case "convert":
+		return strings.ReplaceAll(content, "\r\n", "\n"), nil
+	case "preserve":
+		return content, nil
+	case "error":
+		if strings.Contains(content, "\r\n") {
+			return "", fmt.Errorf("file contains CRLF line endings, which are not allowed in error mode")
+		}
+		return content, nil
+	default:
+		return "", fmt.Errorf("invalid CRLF mode: %q (must be convert, preserve, or error)", mode)
+	}
+}
+
 // StepRunner handles execution of individual steps within a job container.
 type StepRunner struct {
 	cli         *client.Client
 	containerID string
 	workingDir  string
 	secrets     []string
+	crlf        string // "convert", "preserve", or "error"
 }
 
 // NewStepRunner creates a new step runner for a job container.
-func NewStepRunner(cli *client.Client, containerID, workingDir string) *StepRunner {
+func NewStepRunner(cli *client.Client, containerID, workingDir string, crlf string) *StepRunner {
 	return &StepRunner{
 		cli:         cli,
 		containerID: containerID,
 		workingDir:  workingDir,
+		crlf:        crlf,
 	}
 }
 
@@ -109,6 +129,13 @@ func (sr *StepRunner) RunStep(ctx context.Context, step workflow.Step, jobEnv ma
 	if err != nil {
 		return nil, fmt.Errorf("interpolate step run: %w\n  Hint: Check expression syntax", err)
 	}
+
+	// Normalize line endings based on CRLF mode
+	normalizedCommand, err := NormalizeLineEndings(runCommand, sr.crlf)
+	if err != nil {
+		return nil, fmt.Errorf("normalize script line endings: %w", err)
+	}
+	runCommand = normalizedCommand
 
 	// Build the command to execute
 	cmd := sr.buildCommand(runCommand, shell)

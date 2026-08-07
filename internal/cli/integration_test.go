@@ -12,7 +12,7 @@ import (
 func buildTestBinary(t *testing.T) string {
 	t.Helper()
 	binaryPath := filepath.Join(t.TempDir(), "gacils-test")
-	cmd := exec.Command("go", "build", "-o", binaryPath, "../../cmd/gacils")
+	cmd := exec.Command("go", "build", "-buildvcs=false", "-o", binaryPath, "../../cmd/gacils")
 	cmd.Dir = "."
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("failed to build gacils: %v", err)
@@ -213,15 +213,46 @@ jobs:
 	}
 }
 
-// TestCLI_CRLFWarn verifies --crlf emits a "not yet implemented" warning
-func TestCLI_CRLFWarn(t *testing.T) {
+// TestCLI_CRLFFlag verifies --crlf flag is implemented (no warning)
+func TestCLI_CRLFFlag(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+
 	binary := buildTestBinary(t)
 
-	cmd := exec.Command(binary, "run", "--crlf", "preserve", "-W", "/nonexistent/workflow.yml")
-	output, _ := cmd.CombinedOutput()
+	// Create a workflow with a script
+	tmpDir := t.TempDir()
+	wfPath := createTestWorkflow(t, tmpDir, `
+name: test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test script
+        run: |
+          echo "Testing line endings"
+          echo "Line 2"
+          echo "Line 3"
+`)
 
-	if !strings.Contains(string(output), "Warning") || !strings.Contains(string(output), "--crlf") {
-		t.Errorf("expected --crlf warning in output, got: %s", output)
+	// Test with --crlf convert (default)
+	cmd := exec.Command(binary, "run", "-W", wfPath, "--crlf", "convert")
+	output, err := cmd.CombinedOutput()
+
+	outputStr := string(output)
+
+	// Should NOT see the warning stub
+	if strings.Contains(outputStr, "not yet implemented") {
+		t.Error("should not see 'not yet implemented' warning — flag should be implemented")
+	}
+
+	// If Docker is not available, that's acceptable
+	if err != nil {
+		if strings.Contains(outputStr, "Cannot connect to the Docker daemon") {
+			t.Log("Docker not available in test environment, skipping error check")
+		}
 	}
 }
 

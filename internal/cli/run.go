@@ -21,11 +21,6 @@ func newRunCmd() *cobra.Command {
 		Long:         "Run GitHub Actions workflows locally using Docker.",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Warn about flags that are accepted but not yet implemented,
-			// so users get actionable feedback instead of silent no-ops.
-			if flags.CRLF != "convert" {
-				fmt.Fprintf(os.Stderr, "Warning: --crlf=%s is not yet implemented; defaulting to 'convert' behavior.\n", flags.CRLF)
-			}
 
 			// Use default workflow directory if not specified
 			workflowPath := flags.Workflow
@@ -71,7 +66,7 @@ func newRunCmd() *cobra.Command {
 			}
 
 			// Execute workflows
-			return executeWorkflows(cmd.Context(), workflows, paths, flags.Job, flags.Offline, flags.Parallel, flags.Platform)
+			return executeWorkflows(cmd.Context(), workflows, paths, flags.Job, flags.Offline, flags.Parallel, flags.Platform, flags.CRLF)
 		},
 	}
 
@@ -81,7 +76,7 @@ func newRunCmd() *cobra.Command {
 }
 
 // executeWorkflows executes the loaded workflows using Docker.
-func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths []string, jobFilter string, offline bool, parallel int, platform string) error {
+func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths []string, jobFilter string, offline bool, parallel int, platform string, crlf string) error {
 	// Create Docker client
 	cli, err := dockerx.CreateDockerClient()
 	if err != nil {
@@ -90,7 +85,7 @@ func executeWorkflows(ctx context.Context, workflows []*workflow.Workflow, paths
 	defer cli.Close()
 
 	// Create job runner and workflow runner
-	jobRunner := runner.NewJobRunner(cli, offline, platform)
+	jobRunner := runner.NewJobRunner(cli, offline, platform, crlf)
 	workflowRunner := runner.NewWorkflowRunner(jobRunner, offline)
 
 	// Process each workflow

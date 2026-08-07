@@ -67,7 +67,7 @@ func TestRunStep_SimpleCommand(t *testing.T) {
 	})
 	defer cleanup()
 
-	sr := NewStepRunner(nil, "fake-container", "/workspace")
+	sr := NewStepRunner(nil, "fake-container", "/workspace", "convert")
 	exprCtx := NewExpressionContext(nil, nil, nil, NewStepOutputs())
 	step := workflow.Step{Run: "echo hello"}
 
@@ -88,7 +88,7 @@ func TestRunStep_WithEnv(t *testing.T) {
 	})
 	defer cleanup()
 
-	sr := NewStepRunner(nil, "fake-container", "/workspace")
+	sr := NewStepRunner(nil, "fake-container", "/workspace", "convert")
 	exprCtx := NewExpressionContext(nil, nil, nil, NewStepOutputs())
 	step := workflow.Step{Run: "echo $FOO"}
 	env := map[string]string{"FOO": "bar"}
@@ -110,7 +110,7 @@ func TestRunStep_WithWorkingDirectory(t *testing.T) {
 	})
 	defer cleanup()
 
-	sr := NewStepRunner(nil, "fake-container", "/workspace")
+	sr := NewStepRunner(nil, "fake-container", "/workspace", "convert")
 	exprCtx := NewExpressionContext(nil, nil, nil, NewStepOutputs())
 	step := workflow.Step{Run: "pwd"}
 
@@ -129,7 +129,7 @@ func TestRunStep_ContinueOnError(t *testing.T) {
 	})
 	defer cleanup()
 
-	sr := NewStepRunner(nil, "fake-container", "/workspace")
+	sr := NewStepRunner(nil, "fake-container", "/workspace", "convert")
 	exprCtx := NewExpressionContext(nil, nil, nil, NewStepOutputs())
 	step := workflow.Step{Run: "exit 1", ContinueOnError: true}
 
@@ -156,7 +156,7 @@ func TestRunStep_Timeout(t *testing.T) {
 	})
 	defer cleanup()
 
-	sr := NewStepRunner(nil, "fake-container", "/workspace")
+	sr := NewStepRunner(nil, "fake-container", "/workspace", "convert")
 	exprCtx := NewExpressionContext(nil, nil, nil, NewStepOutputs())
 	step := workflow.Step{Run: "sleep 10"}
 
@@ -180,7 +180,7 @@ func TestRunStep_IfCondition_True(t *testing.T) {
 	})
 	defer cleanup()
 
-	sr := NewStepRunner(nil, "fake-container", "/workspace")
+	sr := NewStepRunner(nil, "fake-container", "/workspace", "convert")
 	exprCtx := NewExpressionContext(nil, nil, nil, NewStepOutputs())
 	step := workflow.Step{
 		If:  "true",
@@ -197,7 +197,7 @@ func TestRunStep_IfCondition_True(t *testing.T) {
 }
 
 func TestRunStep_IfCondition_False(t *testing.T) {
-	sr := NewStepRunner(nil, "fake-container", "/workspace")
+	sr := NewStepRunner(nil, "fake-container", "/workspace", "convert")
 	exprCtx := NewExpressionContext(nil, nil, nil, NewStepOutputs())
 	step := workflow.Step{
 		If:  "false",
@@ -219,7 +219,7 @@ func TestRunStep_IfCondition_Empty(t *testing.T) {
 	})
 	defer cleanup()
 
-	sr := NewStepRunner(nil, "fake-container", "/workspace")
+	sr := NewStepRunner(nil, "fake-container", "/workspace", "convert")
 	exprCtx := NewExpressionContext(nil, nil, nil, NewStepOutputs())
 	step := workflow.Step{
 		If:  "",
@@ -244,7 +244,7 @@ func TestRunStep_WithInterpolation(t *testing.T) {
 	})
 	defer cleanup()
 
-	sr := NewStepRunner(nil, "fake-container", "/workspace")
+	sr := NewStepRunner(nil, "fake-container", "/workspace", "convert")
 	env := map[string]string{"GREETING": "hello"}
 	exprCtx := NewExpressionContext(env, nil, nil, NewStepOutputs())
 	step := workflow.Step{
@@ -266,7 +266,7 @@ func TestRunStep_InterpolationError(t *testing.T) {
 	})
 	defer cleanup()
 
-	sr := NewStepRunner(nil, "fake-container", "/workspace")
+	sr := NewStepRunner(nil, "fake-container", "/workspace", "convert")
 	exprCtx := NewExpressionContext(nil, nil, nil, NewStepOutputs())
 	step := workflow.Step{
 		Run: "echo ${{ env.INVALID..NAME }}",
@@ -285,7 +285,7 @@ func TestRunStep_CommandNotFound(t *testing.T) {
 	})
 	defer cleanup()
 
-	sr := NewStepRunner(nil, "fake-container", "/workspace")
+	sr := NewStepRunner(nil, "fake-container", "/workspace", "convert")
 	exprCtx := NewExpressionContext(nil, nil, nil, NewStepOutputs())
 	step := workflow.Step{
 		Run: "nonexistent_command_12345",
@@ -306,7 +306,7 @@ func TestRunStep_ExitCode(t *testing.T) {
 	})
 	defer cleanup()
 
-	sr := NewStepRunner(nil, "fake-container", "/workspace")
+	sr := NewStepRunner(nil, "fake-container", "/workspace", "convert")
 	exprCtx := NewExpressionContext(nil, nil, nil, NewStepOutputs())
 	step := workflow.Step{
 		Run: "exit 42",
@@ -323,7 +323,7 @@ func TestRunStep_ExitCode(t *testing.T) {
 
 // Additional test cases for step runner secrets and unsupported actions
 func TestRunStep_UnsupportedAction(t *testing.T) {
-	sr := NewStepRunner(nil, "fake-container", "/workspace")
+	sr := NewStepRunner(nil, "fake-container", "/workspace", "convert")
 	exprCtx := NewExpressionContext(nil, nil, nil, NewStepOutputs())
 	step := workflow.Step{
 		Uses: "actions/unknown-action@v1",
@@ -340,7 +340,7 @@ func TestRunStep_UnsupportedAction(t *testing.T) {
 }
 
 func TestStepRunner_SetSecrets(t *testing.T) {
-	sr := NewStepRunner(nil, "fake-container", "/workspace")
+	sr := NewStepRunner(nil, "fake-container", "/workspace", "convert")
 	sr.SetSecrets([]string{"MY_SECRET"})
 	if len(sr.secrets) != 1 || sr.secrets[0] != "MY_SECRET" {
 		t.Errorf("SetSecrets failed, got %v", sr.secrets)
@@ -348,7 +348,7 @@ func TestStepRunner_SetSecrets(t *testing.T) {
 }
 
 func TestRunStep_NoRunNoUses(t *testing.T) {
-	sr := NewStepRunner(nil, "fake-container", "/workspace")
+	sr := NewStepRunner(nil, "fake-container", "/workspace", "convert")
 	exprCtx := NewExpressionContext(nil, nil, nil, NewStepOutputs())
 	step := workflow.Step{}
 
@@ -359,7 +359,7 @@ func TestRunStep_NoRunNoUses(t *testing.T) {
 }
 
 func TestRunStep_SupportedAction_SetupPython(t *testing.T) {
-	sr := NewStepRunner(nil, "fake-container", "/workspace")
+	sr := NewStepRunner(nil, "fake-container", "/workspace", "convert")
 	exprCtx := NewExpressionContext(nil, nil, nil, NewStepOutputs())
 	jobEnv := make(map[string]string)
 	step := workflow.Step{
@@ -380,7 +380,7 @@ func TestRunStep_SupportedAction_SetupPython(t *testing.T) {
 }
 
 func TestRunStep_IfCondition_NonBoolean(t *testing.T) {
-	sr := NewStepRunner(nil, "fake-container", "/workspace")
+	sr := NewStepRunner(nil, "fake-container", "/workspace", "convert")
 	exprCtx := NewExpressionContext(nil, nil, nil, NewStepOutputs())
 	step := workflow.Step{
 		If:  "12345",
@@ -392,4 +392,3 @@ func TestRunStep_IfCondition_NonBoolean(t *testing.T) {
 		t.Fatalf("expected non-boolean error, got %v", err)
 	}
 }
-

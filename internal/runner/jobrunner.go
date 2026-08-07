@@ -21,14 +21,16 @@ type JobRunner struct {
 	cli      *client.Client
 	offline  bool
 	platform string
+	crlf     string // "convert", "preserve", or "error"
 }
 
 // NewJobRunner creates a new job runner.
-func NewJobRunner(cli *client.Client, offline bool, platform string) *JobRunner {
+func NewJobRunner(cli *client.Client, offline bool, platform string, crlf string) *JobRunner {
 	return &JobRunner{
 		cli:      cli,
 		offline:  offline,
 		platform: platform,
+		crlf:     crlf,
 	}
 }
 
@@ -289,7 +291,7 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 	}
 
 	// Create step runner
-	stepRunner := NewStepRunner(jr.cli, containerID, workingDir)
+	stepRunner := NewStepRunner(jr.cli, containerID, workingDir, jr.crlf)
 
 	// Ensure PATH is initialized from container
 	if jobEnv["PATH"] == "" {
