@@ -1,4 +1,4 @@
-.PHONY: all help test test-unit test-integration build vet fmt lint clean check-go check-docker
+.PHONY: all help test test-unit test-integration build vet fmt lint clean audit clean-docker clean-all check-go check-docker
 
 # ============================================================================
 # Universal Go Makefile
@@ -105,6 +105,10 @@ help:
 	@echo "  make clean            Remove common build artifacts"
 	@echo "  make check-go         Show selected Go runtime"
 	@echo "  make check-docker     Show Docker status"
+	@echo "  make audit            Show current Docker waste"
+	@echo "  make clean-docker     Light cleanup (removes stopped containers, dangling images, test artifacts)"
+	@echo "  make clean-all        Full cleanup (removes all unused Docker resources between phases)"
+	@echo "  make clean-all PRUNE_IMAGES=1   .. also removes ALL unused images"
 	@echo ""
 	@echo "Options:"
 	@echo "  STRICT_MISSING_RUNTIME=1  Fail when Go and Docker are both unavailable"
@@ -176,5 +180,19 @@ lint: check-go
 
 clean:
 	@rm -rf ./bin ./dist
+
+## audit: Show current Docker waste
+audit:
+	@bash scripts/audit-waste.sh
+
+## clean-docker: Light cleanup (safe for frequent use)
+clean-docker:
+	@bash scripts/cleanup-light.sh
+
+## clean-all: Full cleanup (between development phases)
+##   Usage: make clean-all                # Safe mode (preserves recent images)
+##   Usage: make clean-all PRUNE_IMAGES=1 # Prune images mode (removes ALL images)
+clean-all:
+	@bash scripts/cleanup-full.sh $(if $(PRUNE_IMAGES),--prune-images)
 
 all: fmt vet test
