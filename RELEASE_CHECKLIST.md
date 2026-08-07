@@ -59,20 +59,19 @@ grep -oP 'flags\.\K\w+' internal/cli/flags.go | sort -u | while read var; do
 done
 ```
 
-**Current flag status (as of last audit):**
+**Current flag status (as of v1.4.0):**
 
 | Flag | Used in run.go | Has Test |
 |------|:--------------:|:--------:|
 | `Workflow` | YES | YES |
 | `Job` | YES | YES |
 | `DryRun` | YES | YES |
-| `Parallel` | YES (warns) | YES |
-| `CRLF` | YES (warns) | YES |
-| `Platform` | YES (warns) | YES |
-| `Offline` | YES (warns) | YES |
+| `Parallel` | YES | YES |
+| `CRLF` | YES | YES |
+| `Platform` | YES | YES |
+| `Offline` | YES | YES |
 
-> **Note:** Parallel/CRLF/Platform/Offline now warn users when used. Full implementation is a future task.
-> (`Parallel`, `CRLF`, `Platform`, `Offline`). See [flags.go](internal/cli/flags.go).
+> All 7 flags are now fully implemented and tested. ✅
 
 ## 7. Documentation
 

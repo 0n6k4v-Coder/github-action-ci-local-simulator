@@ -160,6 +160,18 @@ Flags:
   -h, --help              Help for gacils
 ```
 
+## CLI Flags
+
+| Flag | Short | Description | Default |
+|------|-------|-------------|---------|
+| `--workflow` | `-W` | Path to workflow file or directory | `.github/workflows/` |
+| `--job` | `-j` | Run only the specified job | (all jobs) |
+| `--dry-run` | | Print execution plan without running | false |
+| `--offline` | | Skip image pulls, use local images only | false |
+| `--parallel` | `-p` | Max concurrent jobs (0 = unlimited) | 0 |
+| `--platform` | | Docker platform for image pulls | (host platform) |
+| `--crlf` | | Line ending handling: convert, preserve, error | convert |
+
 ### Examples
 
 Run default workflows:

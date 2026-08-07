@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-08-07
+
+### Fixed
+- **Critical:** gacils no longer hangs after workflow completion
+  - Replaced WaitContainer with StopContainer for ephemeral containers
+  - Containers using `tail -f /dev/null` entrypoint now stop correctly
+  - Fixes integration test hangs and production hangs
+- ParsePlatform now correctly handles 3-part platform strings (os/arch/variant)
+  - e.g., `linux/amd64/v2` now parses as `("linux", "amd64/v2", nil)`
+- Race condition in test mocks (added mutex to mockJobRunnerForFilter)
+
+### Added
+- **Universal Makefile** for Go projects
+  - Auto-detects Go binary (PATH + common locations)
+  - Falls back to Docker if Go not found
+  - Mounts Docker socket for integration tests
+  - Targets: `test`, `test-unit`, `test-integration`, `build`, `vet`, `fmt`, `lint`, `clean`
+  - Works on Linux, macOS, Windows (WSL2/Git Bash)
+- Complete implementation of all 7 CLI flags (no more "not yet implemented" warnings)
+
+### Changed
+- Default test timeout increased from 120s to 10m (Makefile)
+- Parallel test timing threshold adjusted from 5.5s to 10s (accounts for Docker overhead)
+
+### Complete CLI Flag Reference
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-W, --workflow` | Path to workflow file or directory | `.github/workflows/` |
+| `-j, --job` | Run only the specified job | (all jobs) |
+| `--dry-run` | Print execution plan without running | false |
+| `--offline` | Skip image pulls, use local images only | false |
+| `-p, --parallel` | Max concurrent jobs (0 = unlimited) | 0 |
+| `--platform` | Docker platform for image pulls | (host platform) |
+| `--crlf` | Line ending handling: convert, preserve, error | convert |
+
 ## [1.3.1] - 2026-08-06
 
 ### Fixed
@@ -136,6 +171,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Command-line interface with `run` command
 - Basic test suite
 
+[1.4.0]: https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/releases/tag/v1.4.0
 [1.3.1]: https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/releases/tag/v1.3.1
 [1.3.0]: https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/releases/tag/v1.3.0
 [1.2.0]: https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/releases/tag/v1.2.0
