@@ -415,10 +415,6 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 			break
 		}
 
-		// Check if file exists in container
-		checkCmd := []string{"ls", "-la", githubEnvFile.Path()}
-		_, _ = dockerx.ExecCommand(ctx, jr.cli, containerID, "/", checkCmd, nil)
-
 		// Parse GITHUB_ENV after step - read from container since we're using a volume
 		catCmd := []string{"cat", githubEnvFile.Path()}
 		catResult, err := dockerx.ExecCommand(ctx, jr.cli, containerID, "/", catCmd, nil)
@@ -546,22 +542,21 @@ func (jr *JobRunner) RunJob(ctx context.Context, job workflow.Job, jobID string,
 		}
 	}
 
-	// Wait for container to finish
-	if err := dockerx.WaitContainer(ctx, jr.cli, containerID); err != nil {
+	// Stop the container gracefully (not wait) — it runs `tail -f /dev/null`
+	// as a keepalive, so it will never exit on its own. Stop after steps complete.
+	if err := dockerx.StopContainer(ctx, jr.cli, containerID, 3); err != nil {
+		// If stop fails (e.g., already stopped), force remove
+		_ = dockerx.RemoveContainer(ctx, jr.cli, containerID)
 		if firstError == nil {
-			firstError = fmt.Errorf("wait container: %w", err)
+			firstError = fmt.Errorf("stop container: %w", err)
 			exitCode = 1
 		}
 	}
 
-	// Get container exit code
-	inspect, err := dockerx.InspectContainer(ctx, jr.cli, containerID)
-	if err == nil && inspect.State != nil && inspect.State.ExitCode != 0 {
-		if firstError == nil {
-			exitCode = inspect.State.ExitCode
-			firstError = fmt.Errorf("container exited with code %d", inspect.State.ExitCode)
-		}
-	}
+	// Note: We do NOT inspect the container exit code here because the container's
+	// entrypoint is `tail -f /dev/null` which is killed by the stop call above.
+	// The exit code from that kill (e.g., 137) is meaningless — the job's
+	// actual success/failure is determined by the step results already collected.
 
 	status := StatusSuccess
 	if exitCode != 0 {

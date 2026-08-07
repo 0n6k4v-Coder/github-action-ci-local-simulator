@@ -87,6 +87,17 @@ func RemoveContainer(ctx context.Context, cli *client.Client, containerID string
 	return nil
 }
 
+// StopContainer stops a running container gracefully.
+// This is used for ephemeral containers that keep running (e.g., tail -f /dev/null)
+// to keep the container alive for exec commands.
+func StopContainer(ctx context.Context, cli *client.Client, containerID string, timeoutSec int) error {
+	timeout := container.StopOptions{Timeout: &timeoutSec}
+	if err := cli.ContainerStop(ctx, containerID, timeout); err != nil {
+		return fmt.Errorf("stop container: %w", err)
+	}
+	return nil
+}
+
 // WaitContainer waits for a container to finish and returns its exit code.
 func WaitContainer(ctx context.Context, cli *client.Client, containerID string) error {
 	statusCh, errCh := cli.ContainerWait(ctx, containerID, container.WaitConditionNotRunning)
