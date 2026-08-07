@@ -6,13 +6,13 @@ import (
 
 // RunFlags holds all flags for the run command
 type RunFlags struct {
-	Workflow   string
-	Job        string
-	DryRun     bool
-	Parallel   int
-	CRLF       string
-	Platform   string
-	Offline    bool
+	Workflow string
+	Job      string
+	DryRun   bool
+	Parallel int
+	CRLF     string
+	Platform string
+	Offline  bool
 }
 
 // BindRunFlags binds run-specific flags to the command

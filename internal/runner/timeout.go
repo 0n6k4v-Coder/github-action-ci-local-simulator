@@ -37,10 +37,10 @@ func ParseTimeoutMinutes(value any) (time.Duration, error) {
 
 // TimeoutConfig holds timeout configuration for job/step execution.
 type TimeoutConfig struct {
-	JobTimeout    time.Duration
-	StepTimeout   time.Duration
-	DefaultJob    time.Duration
-	DefaultStep   time.Duration
+	JobTimeout  time.Duration
+	StepTimeout time.Duration
+	DefaultJob  time.Duration
+	DefaultStep time.Duration
 }
 
 // DefaultTimeoutConfig returns sensible defaults for timeouts.

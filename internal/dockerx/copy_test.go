@@ -18,17 +18,17 @@ func TestTarDirectory(t *testing.T) {
 
 	// Create test file structure
 	testFiles := map[string]string{
-		"file1.txt":             "content1",
-		"subdir/file2.txt":      "content2",
-		"subdir/nested/file3.txt": "content3",
-		".git/config":           "git config",
+		"file1.txt":                 "content1",
+		"subdir/file2.txt":          "content2",
+		"subdir/nested/file3.txt":   "content3",
+		".git/config":               "git config",
 		"node_modules/pkg/index.js": "js code",
-		".venv/pyvenv.cfg":      "venv config",
-		"build/output.bin":      "binary",
-		"dist/bundle.js":        "bundle",
-		"coverage.out":          "coverage data",
-		"app.log":               "log content",
-		"script.sh":             "#!/bin/bash\necho hello",
+		".venv/pyvenv.cfg":          "venv config",
+		"build/output.bin":          "binary",
+		"dist/bundle.js":            "bundle",
+		"coverage.out":              "coverage data",
+		"app.log":                   "log content",
+		"script.sh":                 "#!/bin/bash\necho hello",
 	}
 
 	for path, content := range testFiles {
@@ -97,9 +97,9 @@ func TestTarDirectoryWithCustomExcludes(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	testFiles := map[string]string{
-		"keep.txt":      "keep",
+		"keep.txt":          "keep",
 		"custom_ignore.txt": "ignore me",
-		"normal.txt":    "normal",
+		"normal.txt":        "normal",
 	}
 
 	for path, content := range testFiles {
@@ -153,9 +153,9 @@ func TestTarDirectoryNotADirectory(t *testing.T) {
 // TestShouldExclude tests the shouldExclude function directly.
 func TestShouldExclude(t *testing.T) {
 	testCases := []struct {
-		path      string
-		patterns  []string
-		excluded  bool
+		path     string
+		patterns []string
+		excluded bool
 	}{
 		{".git/config", DefaultExcludePatterns, true},
 		{".git/", DefaultExcludePatterns, true},
@@ -217,7 +217,7 @@ func TestCopyConfigValidation(t *testing.T) {
 // TestEnsureWorkspaceDirSafety tests the safety check in CleanupWorkspace.
 func TestCleanupWorkspaceSafety(t *testing.T) {
 	testCases := []struct {
-		path     string
+		path        string
 		shouldAllow bool
 	}{
 		{"/github/workspace", true},
@@ -519,10 +519,10 @@ func TestCopyFromContainerExtraction(t *testing.T) {
 
 	// Add a symlink
 	linkHeader := &tar.Header{
-		Name:       "testdir/link.txt",
-		Typeflag:   tar.TypeSymlink,
-		Linkname:   "file.txt",
-		Mode:       0777,
+		Name:     "testdir/link.txt",
+		Typeflag: tar.TypeSymlink,
+		Linkname: "file.txt",
+		Mode:     0777,
 	}
 	if err := tw.WriteHeader(linkHeader); err != nil {
 		t.Fatalf("write link header: %v", err)

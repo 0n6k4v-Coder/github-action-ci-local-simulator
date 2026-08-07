@@ -49,9 +49,9 @@ jobs:
 		t.Errorf("expected empty job name, got %q", job.Name)
 	}
 	// Check runs-on (before normalization, it's a string)
-		if job.RunsOn != "ubuntu-latest" {
-			t.Errorf("expected runs-on 'ubuntu-latest', got %v", job.RunsOn)
-		}
+	if job.RunsOn != "ubuntu-latest" {
+		t.Errorf("expected runs-on 'ubuntu-latest', got %v", job.RunsOn)
+	}
 
 	if len(job.Steps) != 3 {
 		t.Errorf("expected 3 steps, got %d", len(job.Steps))

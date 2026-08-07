@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/pflag"
 )
 
-
 // TestAllFlagsHaveTests verifies every flag in RunFlags has test coverage
 func TestAllFlagsHaveTests(t *testing.T) {
 	flags := RunFlags{}

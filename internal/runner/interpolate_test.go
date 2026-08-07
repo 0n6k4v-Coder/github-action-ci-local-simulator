@@ -410,6 +410,3 @@ func TestInterpolateWith(t *testing.T) {
 		}
 	})
 }
-
-
-

@@ -138,4 +138,3 @@ func TestJobImageSelection_WithoutSetupPython(t *testing.T) {
 		t.Errorf("expected nil setup-python step, got %v", step)
 	}
 }
-

@@ -105,7 +105,7 @@ func TestCollectSecrets(t *testing.T) {
 	}
 
 	envMap1 := map[string]string{
-		"API_KEY":  "key456",
+		"API_KEY":    "key456",
 		"NORMAL_ENV": "normal",
 	}
 

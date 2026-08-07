@@ -225,7 +225,7 @@ func validateIfCondition(condition string) error {
 	if trimmed == "" {
 		return fmt.Errorf("empty condition")
 	}
-	
+
 	// Allow both ${{ ... }} and bare expressions
 	if strings.HasPrefix(trimmed, "${{") && strings.HasSuffix(trimmed, "}}") {
 		inner := strings.TrimSpace(trimmed[3 : len(trimmed)-2])
@@ -233,7 +233,7 @@ func validateIfCondition(condition string) error {
 			return fmt.Errorf("empty expression in ${{ }}")
 		}
 	}
-	
+
 	// Check for supported status functions
 	supportedFuncs := []string{"success()", "failure()", "always()", "cancelled()"}
 	hasSupportedFunc := false
@@ -243,12 +243,12 @@ func validateIfCondition(condition string) error {
 			break
 		}
 	}
-	
+
 	// Also allow bare function calls without ${{ }}
 	if !hasSupportedFunc && !strings.Contains(trimmed, "(") {
 		// Might be a context reference like "github.ref" - allow for now
 	}
-	
+
 	return nil
 }
 
@@ -266,25 +266,25 @@ type DryRunPlanSet struct {
 
 // DryRunJob represents a job in the dry-run plan.
 type DryRunJob struct {
-	ID        string
-	Name      string
-	RunsOn    string
-	Needs     string
-	If        string
-	Matrix    map[string]any
-	Steps     []DryRunStep
+	ID     string
+	Name   string
+	RunsOn string
+	Needs  string
+	If     string
+	Matrix map[string]any
+	Steps  []DryRunStep
 }
 
 // DryRunStep represents a step in the dry-run plan.
 type DryRunStep struct {
-	Index            int
-	ID               string
-	Name             string
-	Run              string
-	Uses             string
-	If               string
-	ContinueOnError  bool
-	TimeoutMinutes   float64
+	Index           int
+	ID              string
+	Name            string
+	Run             string
+	Uses            string
+	If              string
+	ContinueOnError bool
+	TimeoutMinutes  float64
 }
 
 // GenerateDryRunPlan generates a dry-run plan from the workflow.

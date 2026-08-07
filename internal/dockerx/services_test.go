@@ -8,10 +8,10 @@ import (
 
 func TestParsePorts(t *testing.T) {
 	tests := []struct {
-		name         string
-		ports        []any
-		wantPrimary  string
-		wantErr      bool
+		name        string
+		ports       []any
+		wantPrimary string
+		wantErr     bool
 	}{
 		{
 			name:        "host:container port string",

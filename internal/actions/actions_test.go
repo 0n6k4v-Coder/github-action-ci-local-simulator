@@ -231,4 +231,3 @@ func TestExecuteArtifacts(t *testing.T) {
 		t.Errorf("expected non-empty stdout")
 	}
 }
-

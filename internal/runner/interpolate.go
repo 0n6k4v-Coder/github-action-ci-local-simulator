@@ -464,7 +464,6 @@ func (ec *ExpressionContext) evaluateOperand(arg string) (string, error) {
 	return ec.evaluateContextPath(arg)
 }
 
-
 func (ec *ExpressionContext) evaluateContextPath(expr string) (string, error) {
 	expr = strings.TrimSpace(expr)
 

@@ -20,12 +20,12 @@ const (
 
 // StepResult represents the result of executing a step.
 type StepResult struct {
-	ExitCode   int
-	Stdout     string
-	Stderr     string
-	Status     Status
-	Outcome    Status // Raw outcome before continue-on-error
-	Conclusion Status // Final conclusion after continue-on-error
+	ExitCode        int
+	Stdout          string
+	Stderr          string
+	Status          Status
+	Outcome         Status // Raw outcome before continue-on-error
+	Conclusion      Status // Final conclusion after continue-on-error
 	ContinueOnError bool
 }
 

@@ -33,7 +33,7 @@ func TestCreateDockerClient_RespectsDOCKER_HOST(t *testing.T) {
 	// which automatically respects DOCKER_HOST environment variable
 	// We can't test this directly without mocking, but we can verify
 	// that the function signature and behavior are correct
-	
+
 	cli, err := CreateDockerClient()
 	if err != nil {
 		t.Fatalf("CreateDockerClient failed: %v", err)
@@ -52,7 +52,7 @@ func TestCreateDockerClient_GracefulFailure(t *testing.T) {
 	// This test verifies that errors are clear and actionable
 	// We can't easily simulate Docker unavailability in unit tests,
 	// but we can verify the function returns proper error types
-	
+
 	cli, err := CreateDockerClient()
 	if err != nil {
 		// Error should be clear and actionable
@@ -64,7 +64,7 @@ func TestCreateDockerClient_GracefulFailure(t *testing.T) {
 		return
 	}
 	defer cli.Close()
-	
+
 	t.Log("Docker available, graceful failure test skipped")
 }
 
@@ -81,7 +81,7 @@ func TestCreateDockerClient_Integration(t *testing.T) {
 	defer cli.Close()
 
 	ctx := context.Background()
-	
+
 	// Test 1: Ping
 	_, err = cli.Ping(ctx)
 	if err != nil {
@@ -93,6 +93,6 @@ func TestCreateDockerClient_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ContainerList failed: %v", err)
 	}
-	
+
 	t.Logf("Docker integration test passed, found %d containers", len(containers))
 }

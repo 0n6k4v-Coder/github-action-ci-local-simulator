@@ -23,8 +23,8 @@ var globalFlags struct {
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "gacils",
-		Short:   "Run GitHub Actions workflows locally using Docker",
+		Use:   "gacils",
+		Short: "Run GitHub Actions workflows locally using Docker",
 		Long: `gacils is a personal open-source tool for running GitHub Actions workflows
 locally using Docker. It helps you test workflows before pushing,
 debug CI failures locally, and reduce GitHub Actions minute usage.

@@ -77,12 +77,15 @@ func BuildGacils(t *testing.T) {
 func CleanupGacils(t *testing.T) {
 	os.Remove("gacils")
 }
+
 // unexported aliases for backward compatibility within integration package
-func isDockerAvailable() bool { return IsDockerAvailable() }
-func skipIfNoDocker(t *testing.T) { SkipIfNoDocker(t) }
-func createDockerClient(t *testing.T) *client.Client { return CreateDockerClient(t) }
+func isDockerAvailable() bool                                { return IsDockerAvailable() }
+func skipIfNoDocker(t *testing.T)                            { SkipIfNoDocker(t) }
+func createDockerClient(t *testing.T) *client.Client         { return CreateDockerClient(t) }
 func runGacils(t *testing.T, args ...string) (string, error) { return RunGacils(t, args...) }
-func runGacilsInDir(t *testing.T, dir string, args ...string) (string, error) { return RunGacilsInDir(t, dir, args...) }
+func runGacilsInDir(t *testing.T, dir string, args ...string) (string, error) {
+	return RunGacilsInDir(t, dir, args...)
+}
 func copyFile(src, dst string) error { return CopyFile(src, dst) }
-func buildGacils(t *testing.T) { BuildGacils(t) }
-func cleanupGacils(t *testing.T) { CleanupGacils(t) }
+func buildGacils(t *testing.T)       { BuildGacils(t) }
+func cleanupGacils(t *testing.T)     { CleanupGacils(t) }
