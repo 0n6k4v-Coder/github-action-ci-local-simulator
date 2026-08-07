@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-08-07
+
+### Added
+- **`gacils clean` command** for Docker resource cleanup
+  - `gacils clean --dry-run` — Preview what would be removed (safe)
+  - `gacils clean` — Light cleanup (stopped containers + dangling images)
+  - `gacils clean --all` — Full cleanup (volumes + build cache)
+  - `gacils clean --images` — Remove unused images (24h safety filter)
+  - `gacils clean --prune-images` — Remove ALL images (aggressive)
+  - `gacils clean --force` — Skip confirmation prompt
+- README.md documentation for clean command
+
+### Safety Features
+- Default is safe (only removes stopped containers + dangling images)
+- Confirmation prompt (unless `--force`)
+- Dry-run mode to preview before removing
+- 24h safety filter for images
+
+### Note
+The clean command was implemented after v1.4.0 was tagged. Users must
+install v1.4.1 or later to access this feature.
+
+### Installation
+```bash
+go install github.com/0n6k4v-Coder/github-action-ci-local-simulator/cmd/gacils@v1.4.1
+```
+
 ## [1.4.0] - 2026-08-07
 
 ### Fixed
@@ -171,6 +198,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Command-line interface with `run` command
 - Basic test suite
 
+[1.4.1]: https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/releases/tag/v1.4.1
 [1.4.0]: https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/releases/tag/v1.4.0
 [1.3.1]: https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/releases/tag/v1.3.1
 [1.3.0]: https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/releases/tag/v1.3.0
