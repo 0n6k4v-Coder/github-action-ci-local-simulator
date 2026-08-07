@@ -1,6 +1,7 @@
 package dockerx
 
 import (
+	"fmt"
 	"runtime"
 	"strings"
 )
@@ -85,13 +86,26 @@ func HostPlatform() Platform {
 	}
 }
 
-// ParsePlatform parses a platform string in "os/arch" format.
+// ParsePlatform validates and parses a platform string.
+// Formats supported:
+//   - "" (empty) → ("", "", nil) — use host default
+//   - "os/arch" (2 parts) → (os, arch, nil)
+//   - "os/arch/variant" (3 parts) → (os, "arch/variant", nil)
 func ParsePlatform(s string) (os, arch string, err error) {
-	parts := strings.Split(s, "/")
-	if len(parts) != 2 {
-		return "", "", nil // Return empty for invalid format
+	if s == "" {
+		return "", "", nil
 	}
-	return parts[0], parts[1], nil
+
+	parts := strings.SplitN(s, "/", 3)
+	switch len(parts) {
+	case 2:
+		return parts[0], parts[1], nil
+	case 3:
+		// 3-part: os/arch/variant → return arch as "arch/variant"
+		return parts[0], parts[1] + "/" + parts[2], nil
+	default:
+		return "", "", fmt.Errorf("invalid platform format %q (expected os/arch or os/arch/variant)", s)
+	}
 }
 
 // IsValidPlatform checks if a platform string is valid and known.

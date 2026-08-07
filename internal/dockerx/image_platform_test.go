@@ -66,7 +66,7 @@ func TestParsePlatform_ValidInputs(t *testing.T) {
 		{"empty", "", "", "", false},
 		{"linux/amd64", "linux/amd64", "linux", "amd64", false},
 		{"linux/arm64", "linux/arm64", "linux", "arm64", false},
-		{"linux/amd64/v2", "linux/amd64/v2", "", "", false}, // 3 parts returns empty
+		{"linux/amd64/v2", "linux/amd64/v2", "linux", "amd64/v2", false}, // 3-part: os/arch/variant
 	}
 
 	for _, tt := range tests {
@@ -85,6 +85,61 @@ func TestParsePlatform_ValidInputs(t *testing.T) {
 				}
 				if arch != tt.expectArch {
 					t.Errorf("expected arch %q, got %q", tt.expectArch, arch)
+				}
+			}
+		})
+	}
+}
+
+// TestParsePlatform_ThreePartPlatform verifies that ParsePlatform correctly
+// handles Docker SDK 3-part platform strings like "linux/amd64/v2"
+// (os/arch/variant). Before the fix it returned empty os and arch.
+func TestParsePlatform_ThreePartPlatform(t *testing.T) {
+	// Docker SDK supports "linux/amd64/v2" (os/arch/variant)
+	os, arch, err := ParsePlatform("linux/amd64/v2")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if os != "linux" {
+		t.Errorf("expected os 'linux', got %q", os)
+	}
+	if arch == "" {
+		t.Fatalf("expected non-empty arch for 'linux/amd64/v2', got empty string")
+	}
+	t.Logf("ParsePlatform(linux/amd64/v2) = (%q, %q)", os, arch)
+}
+
+// TestParsePlatform_VariousFormats verifies multiple platform string formats.
+func TestParsePlatform_VariousFormats(t *testing.T) {
+	tests := []struct {
+		input    string
+		expectOS string
+		wantErr  bool
+	}{
+		{"", "", false},
+		{"linux/amd64", "linux", false},
+		{"linux/arm64", "linux", false},
+		{"linux/amd64/v2", "linux", false}, // 3-part: must NOT return empty
+		{"linux/arm64/v8", "linux", false}, // 3-part variant
+		{"windows/amd64", "windows", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			os, arch, err := ParsePlatform(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error for %q", tt.input)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error for %q: %v", tt.input, err)
+				}
+				if tt.expectOS != "" && os != tt.expectOS {
+					t.Errorf("expected os %q for %q, got %q", tt.expectOS, tt.input, os)
+				}
+				if tt.input != "" && arch == "" {
+					t.Errorf("expected non-empty arch for %q, got empty", tt.input)
 				}
 			}
 		})
