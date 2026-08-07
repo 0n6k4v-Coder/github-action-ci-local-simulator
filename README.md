@@ -189,6 +189,91 @@ Dry-run validation:
 gacils run --dry-run
 ```
 
+## 🧹 Cleanup
+
+gacils uses Docker to run workflows. Over time, Docker resources (containers, images, volumes) can accumulate. Use the `clean` command to manage these resources.
+
+### Quick Reference
+
+```bash
+gacils clean --dry-run          # See what would be removed (safe)
+gacils clean                    # Light cleanup (with confirmation)
+gacils clean --all              # Full cleanup (volumes + build cache)
+gacils clean --images           # Also remove unused images (24h filter)
+gacils clean --prune-images     # Remove ALL images (aggressive)
+gacils clean --force            # Skip confirmation prompt
+```
+
+### Usage Examples
+
+**Preview what would be removed (recommended first step):**
+```bash
+gacils clean --dry-run
+```
+Output:
+```
+=== Dry Run Mode ===
+Showing what would be removed (no action taken)
+
+Found: 5 containers, 12 images, 3 volumes
+
+[DRY RUN] Would remove:
+  - 5 containers
+
+Run without --dry-run to actually remove these resources.
+```
+
+**Light cleanup (safe default):**
+```bash
+gacils clean
+```
+- Removes stopped containers
+- Removes dangling images only
+- Asks for confirmation
+- Does NOT remove volumes or build cache
+
+**Full cleanup (between development phases):**
+```bash
+gacils clean --all
+```
+- Removes ALL containers (running + stopped)
+- Removes unused images (24h safety filter)
+- Removes unused volumes
+- Cleans build cache
+- Asks for confirmation
+
+**Aggressive cleanup (truly clean slate):**
+```bash
+gacils clean --all --prune-images
+```
+- Everything from `--all`
+- Removes ALL unused images (no filter)
+- Will need to re-pull images on next run
+
+**Skip confirmation (for automation):**
+```bash
+gacils clean --force
+```
+- Skips the confirmation prompt
+- Use with caution in automation
+
+### Safety Features
+
+- **Default is safe:** Only removes stopped containers and dangling images
+- **Confirmation prompt:** Asks before removing resources (unless `--force`)
+- **Dry-run mode:** Preview what would be removed before actually removing
+- **24h safety filter:** `--images` keeps images from the last 24h
+
+### When to Use Each Mode
+
+| Mode | Use Case | What's Removed |
+|------|----------|----------------|
+| `--dry-run` | Preview before cleanup | Nothing (just shows) |
+| (default) | Regular maintenance | Stopped containers + dangling images |
+| `--all` | Between development phases | All containers + images + volumes + cache |
+| `--prune-images` | Truly clean slate | ALL unused images (no filter) |
+| `--force` | Automation/scripting | Same as default, but no confirmation |
+
 ## 🔬 Example Workflows
 
 ### 1. Matrix Build with Parallel Jobs
