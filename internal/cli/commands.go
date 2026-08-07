@@ -74,29 +74,6 @@ func newDoctorCmd() *cobra.Command {
 	return cmd
 }
 
-func newCleanCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "clean",
-		Short: "Remove gacils local cache, logs, containers, and volumes",
-		Long:  "Remove gacils local cache, logs, containers, and volumes.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("gacils clean is not implemented yet")
-			return nil
-		},
-	}
-
-	cmd.Flags().Bool("logs", false, "Remove logs")
-	cmd.Flags().Bool("cache", false, "Remove cache")
-	cmd.Flags().Bool("containers", false, "Remove gacils containers")
-	cmd.Flags().Bool("volumes", false, "Remove gacils Docker volumes")
-	cmd.Flags().Bool("all", false, "Remove logs, cache, containers, and volumes")
-	cmd.Flags().Duration("older-than", 0, "Remove logs older than duration")
-	cmd.Flags().Bool("force", false, "Do not ask for confirmation")
-	cmd.Flags().Bool("include-config", false, "Also remove config file")
-
-	return cmd
-}
-
 func newSetupCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "setup",

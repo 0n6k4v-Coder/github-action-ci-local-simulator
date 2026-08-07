@@ -15,6 +15,15 @@ type RunFlags struct {
 	Offline  bool
 }
 
+// CleanFlags represents the clean command flags
+type CleanFlags struct {
+	All         bool // Remove all resources (containers, volumes, cache)
+	Images      bool // Also remove unused images (with 24h safety filter)
+	PruneImages bool // Remove ALL images (no filter, aggressive)
+	DryRun      bool // Show what would be removed without action
+	Force       bool // Skip confirmation prompt
+}
+
 // BindRunFlags binds run-specific flags to the command
 func BindRunFlags(cmd *cobra.Command, flags *RunFlags) {
 	cmd.Flags().StringVarP(&flags.Workflow, "workflow", "W", "", "Workflow file or directory (default: .github/workflows)")
@@ -24,4 +33,13 @@ func BindRunFlags(cmd *cobra.Command, flags *RunFlags) {
 	cmd.Flags().StringVar(&flags.CRLF, "crlf", "convert", "CRLF handling mode: convert | preserve | error (default: convert)")
 	cmd.Flags().StringVar(&flags.Platform, "platform", "", "Force container platform (e.g., linux/amd64)")
 	cmd.Flags().BoolVar(&flags.Offline, "offline", false, "Offline mode: do not pull images")
+}
+
+// BindCleanFlags binds clean command flags
+func BindCleanFlags(cmd *cobra.Command, flags *CleanFlags) {
+	cmd.Flags().BoolVar(&flags.All, "all", false, "Remove all resources (containers, volumes, build cache)")
+	cmd.Flags().BoolVar(&flags.Images, "images", false, "Also remove unused images (with 24h safety filter)")
+	cmd.Flags().BoolVar(&flags.PruneImages, "prune-images", false, "Remove ALL images (no filter, aggressive)")
+	cmd.Flags().BoolVar(&flags.DryRun, "dry-run", false, "Show what would be removed without taking action")
+	cmd.Flags().BoolVar(&flags.Force, "force", false, "Skip confirmation prompt")
 }

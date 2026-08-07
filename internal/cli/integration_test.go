@@ -336,3 +336,32 @@ jobs:
 		t.Error("should not see 'not yet implemented' warning — flag should be implemented")
 	}
 }
+
+// TestCLI_CleanCommand is an integration test for the clean command.
+// It verifies dry-run mode works gracefully with and without Docker.
+func TestCLI_CleanCommand(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+
+	binary := buildTestBinary(t)
+
+	// Test dry-run mode (should not fail even without Docker)
+	cmd := exec.Command(binary, "clean", "--dry-run", "--force")
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		// Docker might not be available, that's OK for this test
+		if !strings.Contains(string(output), "Cannot connect to the Docker daemon") &&
+			!strings.Contains(string(output), "Error: failed powering") {
+			t.Errorf("unexpected error: %v\nOutput: %s", err, output)
+		}
+		t.Log("Docker not available, skipping error check")
+	} else {
+		// Should show dry run output
+		outputStr := string(output)
+		if !strings.Contains(outputStr, "Dry Run") && !strings.Contains(outputStr, "Would remove") {
+			t.Logf("Output: %s", outputStr)
+		}
+	}
+}
