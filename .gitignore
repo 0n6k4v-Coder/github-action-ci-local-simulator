@@ -28,6 +28,11 @@
 /.gacils-local/
 /artifacts/
 
+# Test-generated gacils binaries and artifacts (never commit)
+test/e2e/gacils
+test/integration/gacils
+test/integration/.gacils-artifacts/
+
 # Environment and secrets
 .env
 .env.local
