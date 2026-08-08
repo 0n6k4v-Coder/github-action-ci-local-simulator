@@ -43,8 +43,8 @@ jobs:
     # Only analyze the default branch and pull requests targeting it.
     # Branch protection checks will require this job to pass.
     if: >-
-      github.event_name == "push" ||
-      github.event_name == "schedule" ||
+      github.event_name == 'push' ||
+      github.event_name == 'schedule' ||
       (github.event.pull_request.base.ref == github.repository_default_branch)
 
     steps:
