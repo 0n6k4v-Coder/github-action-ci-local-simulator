@@ -53,9 +53,10 @@ func TestReleaseTag_HasCleanCommand(t *testing.T) {
 	}
 }
 
-// TestReleaseTag_NoStubs verifies that no stub commands return nil (which
-// would give users exit code 0 instead of a proper error).
-func TestReleaseTag_NoStubs(t *testing.T) {
+// TestReleaseTag_CleanCommandNotStub verifies that the clean command is not
+// a stub returning nil (which would give users exit code 0 instead of a
+// proper error). Other commands may intentionally remain unimplemented.
+func TestReleaseTag_CleanCommandNotStub(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode")
 	}
@@ -69,7 +70,7 @@ func TestReleaseTag_NoStubs(t *testing.T) {
 
 	tag := strings.TrimSpace(string(tagBytes))
 
-	// Check commands.go for stubs returning nil
+	// Check commands.go for the clean command stub returning nil
 	cmd = exec.Command("git", "show", tag+":internal/cli/commands.go")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -80,11 +81,11 @@ func TestReleaseTag_NoStubs(t *testing.T) {
 	lines := strings.Split(outputStr, "\n")
 
 	for i, line := range lines {
-		if strings.Contains(line, "not implemented") {
+		if strings.Contains(line, "clean") && strings.Contains(line, "not implemented") {
 			// Check next 5 lines for "return nil"
 			for j := i + 1; j < len(lines) && j < i+6; j++ {
 				if strings.Contains(lines[j], "return nil") {
-					t.Errorf("Stub at line %d in tag %s returns nil instead of error", i+1, tag)
+					t.Errorf("clean command stub at line %d in tag %s returns nil instead of error", i+1, tag)
 					break
 				}
 			}

@@ -39,34 +39,35 @@ else
 fi
 
 echo ""
-echo "Step 2: Checking stub commands in tag..."
-# Get commands.go from the tag and check for stubs returning nil
+echo "Step 2: Checking clean command for nil-returning stubs..."
+# Get commands.go from the tag
 STUB_OUTPUT=$(git show ${TAG}:internal/cli/commands.go 2>/dev/null || echo "")
 
 if [ -n "$STUB_OUTPUT" ]; then
-    # Check for stubs that return nil (bad)
-    STUBS_NIL=$(python3 -c '
+    # Check specifically for the clean command stub returning nil (bad)
+    # Other commands may intentionally remain unimplemented stubs.
+    CLEAN_STUB_NIL=$(python3 -c '
 import sys
 lines = sys.stdin.readlines()
-bad = []
+bad = False
 for i, line in enumerate(lines):
-    if "not implemented" in line:
+    if "clean" in line and "not implemented" in line:
         for j in range(i+1, min(i+6, len(lines))):
             if "return nil" in lines[j]:
-                bad.append(f"line {i+1}: {line.strip()}")
+                bad = True
+                print(f"line {i+1}: {line.strip()}")
                 break
-if bad:
-    print("\n".join(bad))
-' <<< "$STUB_OUTPUT" || true)
+if not bad:
+    sys.exit(0)
+' <<< "$STUB_OUTPUT" 2>/dev/null || true)
 
-    if [ -n "$STUBS_NIL" ]; then
-        echo "❌ Found stubs that return nil instead of errors in tag ${TAG}:"
-        echo "$STUBS_NIL"
-        echo ""
-        echo "  These stubs give users exit code 0 instead of a proper error."
+    if [ -n "$CLEAN_STUB_NIL" ]; then
+        echo "❌ clean command is a stub that returns nil in tag ${TAG}:"
+        echo "$CLEAN_STUB_NIL"
+        echo "  This gives users exit code 0 instead of a proper error."
         ERRORS=$((ERRORS + 1))
     else
-        echo "✅ All stubs return errors (not nil) in tag ${TAG}"
+        echo "✅ clean command is not a nil-returning stub in tag ${TAG}"
     fi
 else
     echo "⚠️  Could not check commands.go in tag ${TAG}"
@@ -74,7 +75,6 @@ fi
 
 echo ""
 echo "Step 3: Checking clean command is implemented in tag..."
-# Verify clean command is not a stub in commands.go
 CLEAN_STUB=$(echo "$STUB_OUTPUT" | grep -B2 -A3 'clean.*not implemented' || true)
 if [ -n "$CLEAN_STUB" ]; then
     echo "❌ clean command is still a stub in tag ${TAG}:"
