@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.2] - 2026-08-08
+
+### Fixed
+- **CLI stub commands now return errors instead of silent success**
+  - `gacils list`, `gacils init`, `gacils doctor`, `gacils setup`, and
+    `gacils setup-python` previously printed "not implemented yet" and exited
+    with code 0 (success)
+  - These commands now return a proper error (exit code 1) with a helpful hint
+    and a link to the issue tracker for updates
+  - Prevents users from mistaking unimplemented commands for successful ones
+
+### Documentation
+- Fixed CLI command listing in README.md
+  - `gacils clean` was missing from the Commands section of the usage block
+  - Now listed alongside `gacils run` in the `gacils [command] [flags]` output
+
+### Release & Verification
+- **Pre-release validation script** (`scripts/validate-release.sh`)
+  - Checks for nil-returning stub commands (exit code 0 traps)
+  - Runs unit tests, builds binary, verifies `--help` output
+  - Validates CHANGELOG and README are updated
+  - Verifies `clean --dry-run --force` works
+  - Runs race detector on CLI package
+- **Install-from-tag testing** (`scripts/test-install-from-tag.sh`)
+  - Verifies a release tag contains all claimed features
+  - Checks clean command implementation, stub behavior, README, and CHANGELOG
+- **Automated Go release tests** (`test/release/release_test.go`)
+  - Runs on tagged commits to verify tag integrity
+  - Tests: clean command exists, no nil-returning stubs, README mentions
+    `gacils clean`, CHANGELOG has release section
+
+### Maintenance
+- Generated test binaries and artifacts are now ignored by Git
+  - `test/e2e/gacils`, `test/integration/gacils`, and
+    `test/integration/.gacils-artifacts/` added to `.gitignore`
+
+### Installation
+```bash
+go install github.com/0n6k4v-Coder/github-action-ci-local-simulator/cmd/gacils@v1.4.2
+```
+
 ## [1.4.1] - 2026-08-07
 
 ### Added
@@ -198,6 +239,7 @@ go install github.com/0n6k4v-Coder/github-action-ci-local-simulator/cmd/gacils@v
 - Command-line interface with `run` command
 - Basic test suite
 
+[1.4.2]: https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/releases/tag/v1.4.2
 [1.4.1]: https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/releases/tag/v1.4.1
 [1.4.0]: https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/releases/tag/v1.4.0
 [1.3.1]: https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/releases/tag/v1.3.1
