@@ -3,6 +3,9 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/0n6k4v-Coder/github-action-ci-local-simulator)](https://goreportcard.com/report/github.com/0n6k4v-Coder/github-action-ci-local-simulator)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/0n6k4v-Coder/github-action-ci-local-simulator)](https://golang.org)
+[![CI](https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/0n6k4v-Coder/github-action-ci-local-simulator/actions/workflows/codeql.yml)
+[![Dependabot updates](https://img.shields.io/badge/Dependabot-enabled-blue)](https://docs.github.com/en/code-security/dependabot)
 
 > Run your GitHub Actions workflows locally with Docker — including matrix jobs, parallel execution, service containers, cache, artifacts, and automatic secrets masking.
 
@@ -343,6 +346,32 @@ jobs:
 - [ ] Interactive UI / Terminal Dashboard (`tui`)
 - [ ] Support for reusable workflows (`jobs.<job_id>.uses`)
 - [ ] Pre-built runner image caching engine
+
+## 🛡️ Development & Security
+
+This project has a minimum-viable DevSecOps pipeline:
+
+- **CI** runs automatically on every pull request and push to `main`.
+  It checks `gofmt`, `go vet`, `go build`, unit tests, and the race detector.
+  See `.github/workflows/ci.yml`.
+- **CodeQL** performs static analysis (SAST) on every PR, push to `main`,
+  and weekly on a schedule. Scan results appear in the
+  **Security → Code scanning** tab.
+- **Dependabot** monitors Go module and GitHub Actions dependencies with
+  weekly updates (no auto-merge).
+- **Release validation** (`scripts/validate-release.sh`) is run manually
+  before tagging — it is not part of CI by design.
+
+Report security vulnerabilities per the instructions in
+[`SECURITY.md`](SECURITY.md).
+
+For full documentation of the DevSecOps workflow, see
+[`docs/DEVSECOPS.md`](docs/DEVSECOPS.md).
+
+> **Note:** Branch protection rules, secret scanning, and push protection
+> require manual configuration in GitHub repository settings. See
+> `docs/DEVSECOPS.md` Section 7 for the exact settings the maintainer
+> must enable.
 
 ## 🤝 Contributing
 

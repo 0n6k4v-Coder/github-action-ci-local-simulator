@@ -1,0 +1,80 @@
+name: CodeQL
+
+# ---------------------------------------------------------------------------
+# CodeQL — Static Application Security Testing (SAST) for Go.
+#
+# Runs on pull requests, pushes to main, and a weekly schedule.
+#
+# Permissions:
+#   - contents: read      (checkout source)
+#   - actions: read       (read workflow metadata)
+#   - security-events: write (upload CodeQL results to the code-scanning
+#                              dashboard — the ONLY write scope this needs)
+#
+# This is the standard, GitHub-recommended permission set for CodeQL.
+# No other write scope is granted.
+# ---------------------------------------------------------------------------
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    # Weekly analysis: every Monday at 07:00 UTC
+    - cron: '0 7 * * 1'
+
+# ---------------------------------------------------------------------------
+# Required for CodeQL: the action must be able to upload results to
+# the security-events store of the repository.
+# ---------------------------------------------------------------------------
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+env:
+  # Keep in sync with go.mod (go 1.26)
+  GO_VERSION: '1.26'
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    # Only analyze the default branch and pull requests targeting it.
+    # Branch protection checks will require this job to pass.
+    if: >-
+      github.event_name == "push" ||
+      github.event_name == "schedule" ||
+      (github.event.pull_request.base.ref == github.repository_default_branch)
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go
+          # Pin CodeQL CLI version for reproducibility.
+          # 'latest' is acceptable per GitHub guidance, but pinning
+          # improves determinism.
+          # See: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities/
+          # about-code-scanning-and-codeql/about-codeql
+          # and the release notes at https://github.com/github/codeql-cli-binaries/releases
+          #
+          # For this baseline we use the default (latest released) CodeQL.
+          # You may pin a specific version, e.g.:
+          #   go: 'go1.26.0'
+          #   cli-version: '2.17.5'
+          go: ${{ env.GO_VERSION }}
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+        # The autobuild step will detect the Go module and run the
+        # appropriate build commands automatically.
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          # Category helps distinguish multiple analyses in the dashboard.
+          category: "go-codeql"

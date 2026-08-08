@@ -1,0 +1,112 @@
+name: CI
+
+# ---------------------------------------------------------------------------
+# CI pipeline for gacils
+#
+# This workflow runs on every pull request and push to main.
+# It performs code-quality, build, and security-gate checks.
+#
+# Release / tag-based validation is handled separately by
+# scripts/validate-release.sh and the (manual) release process — it is
+# NOT triggered here, by design, so that routine development does not
+# execute expensive release operations.
+#
+# Permissions are set to the minimum required for CI (read-only).
+# ---------------------------------------------------------------------------
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  # actions: read is needed to restore caches and read the Go module cache.
+  # No write capability is ever needed by this workflow.
+  actions: read
+  # security-events: write is required for the CodeQL workflow only.
+  # This CI workflow does not upload results, so read (default) is sufficient.
+
+env:
+  GO_VERSION: '1.26'
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Cache Go build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Verify Go version
+        run: go version
+
+      # -----------------------------------------------------------------------
+      # Code Quality
+      # -----------------------------------------------------------------------
+      - name: Run gofmt
+        run: |
+          echo "Checking formatting..."
+          if [ -n "$(gofmt -l .)" ]; then
+            echo "::error::gofmt found files that are not formatted"
+            gofmt -l .
+            exit 1
+          fi
+          echo "gofmt: OK"
+
+      - name: Run go vet
+        run: |
+          echo "Running go vet..."
+          go vet ./...
+          echo "go vet: OK"
+
+      # -----------------------------------------------------------------------
+      # Build
+      # -----------------------------------------------------------------------
+      - name: Build
+        run: |
+          echo "Building all packages..."
+          go build ./...
+          echo "Build: OK"
+
+      - name: Build release binary
+        run: |
+          echo "Building release binary..."
+          go build -o /tmp/gacils-ci ./cmd/gacils
+          /tmp/gacils-ci --help > /dev/null
+          echo "Release binary: OK"
+
+      # -----------------------------------------------------------------------
+      # Tests
+      # -----------------------------------------------------------------------
+      # -short skips Docker-dependent integration / e2e tests (per project
+      # convention in scripts/validate-release.sh), making CI fast and
+      # deterministic without requiring privileged container access.
+      # -----------------------------------------------------------------------
+      - name: Run unit tests (short)
+        run: |
+          echo "Running unit tests (short)..."
+          go test -short ./... -timeout 120s
+          echo "Unit tests: OK"
+
+      - name: Run tests with race detector
+        run: |
+          echo "Running tests with race detector..."
+          go test -race ./internal/cli/ -timeout 60s
+          echo "Race detector: OK"

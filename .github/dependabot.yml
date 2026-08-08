@@ -1,0 +1,56 @@
+# ---------------------------------------------------------------------------
+# Dependabot — automated dependency update monitoring.
+#
+# Dependabot opens pull requests for dependencies; it does NOT auto-merge.
+# All updates require human review before merging.
+#
+# Configuration:
+#   - Go modules (go.mod / go.sum): weekly
+#   - GitHub Actions workflows:     weekly
+#
+# Review interval is set to "weekly" to avoid excessive PR noise while
+# still staying current with security patches.
+# ---------------------------------------------------------------------------
+version: 2
+
+updates:
+  # --- Go module dependencies (go.mod / go.sum) ---------------------------------
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "UTC"
+    # Commit all updates in a single branch to reduce PR noise.
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps)"
+    # Open as draft PRs until CI passes.
+    open-pull-requests-limit: 5
+    # Group minor and patch updates together.
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    # Do NOT auto-merge — requires manual review.
+    # Allow maintainer to triage security alerts first.
+
+  # --- GitHub Actions (workflow definitions) ------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "UTC"
+    commit-message:
+      prefix: "chore(actions)"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    # Do NOT auto-merge — requires manual review.
