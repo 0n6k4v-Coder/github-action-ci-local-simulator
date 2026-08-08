@@ -150,6 +150,7 @@ gacils [command] [flags]
 
 Commands:
   run         Run GitHub Actions workflows locally
+  clean       Clean up Docker resources created by gacils
 
 Flags:
   -w, --workflow string   Path to target workflow file (default ".github/workflows")
