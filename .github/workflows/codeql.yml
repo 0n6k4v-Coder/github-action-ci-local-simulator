@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: go
           # Pin CodeQL CLI version for reproducibility.
@@ -69,12 +69,12 @@ jobs:
           go: ${{ env.GO_VERSION }}
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@v4
         # The autobuild step will detect the Go module and run the
         # appropriate build commands automatically.
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           # Category helps distinguish multiple analyses in the dashboard.
           category: "go-codeql"
